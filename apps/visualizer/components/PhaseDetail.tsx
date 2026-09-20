@@ -71,7 +71,13 @@ export function PhaseDetail({
   const config = phase.kind === "agent" ? agentConfig(ordered) : null;
   const request = phase.kind === "engineer" ? requestText(ordered) : null;
   const spend = phaseSpend(ordered);
-  const prompts = usePrompts(adwId, phase.kind === "agent" ? phase.owner : null);
+  // The agent_sessions key IS the directory the prompts were written to —
+  // `scout@api` — so the row is what names the fetch. The bare owner is the
+  // fallback for runs made before agent state was keyed per repo.
+  const prompts = usePrompts(
+    adwId,
+    phase.kind === "agent" ? (agent?.agent ?? phase.owner) : null,
+  );
 
   const start = ts(phase.started_at);
   const end = phase.status === "running" ? now : ts(phase.ended_at);
@@ -101,6 +107,14 @@ export function PhaseDetail({
           <span className="pd-tag">
             <b>kind</b> {phase.kind}
           </span>
+          {/* Which checkout this phase stood in. Absent on a single-target run,
+              where the session header already says it and repeating it per
+              phase would be noise. */}
+          {phase.target ? (
+            <span className="pd-tag">
+              <b>target</b> {phase.target}
+            </span>
+          ) : null}
           <span className="pd-tag">
             <b>attempt</b> {phase.attempt + 1}/{phase.retries + 1}
           </span>

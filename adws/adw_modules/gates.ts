@@ -224,6 +224,115 @@ export const verdict_consistent: Gate = named("verdict_consistent", (envelope) =
   return report;
 });
 
+/**
+ * Resolve a path against a NAMED target, not the phase's own.
+ *
+ * This is the whole trick behind cross-repo verification. An agent is sandboxed
+ * into one checkout and can only claim what it saw there; the harness is not
+ * sandboxed at all, so it can stat a path in a repo the claimant was never
+ * allowed to open. The agent proposes a trail through three trees; code walks
+ * it. An unregistered target is itself a violation — a hop into a repo this run
+ * never resolved is a hop nobody can check.
+ */
+function resolveInTarget(
+  run: RunLike,
+  targetName: string,
+  file: string,
+): { ok: boolean; note: string } {
+  const target = run.targets.find((t) => t.name === targetName);
+  if (!target) {
+    return {
+      ok: false,
+      note:
+        `target '${targetName}' is not one this run resolved (${run.targets
+          .map((t) => t.name)
+          .join(", ")}) — nothing can check a path in a repo that was never opened`,
+    };
+  }
+  const full = path.isAbsolute(file) ? file : path.join(target.path, file);
+  if (!within(full, target.path)) {
+    return { ok: false, note: `escapes ${targetName} at ${target.path}` };
+  }
+  const exists = existsSync(full);
+  return {
+    ok: exists,
+    note: exists ? `exists in ${targetName}` : `does not exist at ${full}`,
+  };
+}
+
+/**
+ * Every hop names a real file in the repo it says it is in. The trace's contract.
+ *
+ * `findings_resolve` for a trail that crosses checkouts. The target is half the
+ * claim: `src/checkout.ts` is true in one repo and a fabrication in another, and
+ * a hop that does not say which is not a claim anyone can refute.
+ */
+export const hops_resolve: Gate = named("hops_resolve", (envelope, run) => {
+  const report = new GateReport();
+  const hops = (envelope as { hops?: { target: string; file: string }[] }).hops ?? [];
+  if (!hops.length) {
+    report.check("hops", false, "no hops reported — say the path is not there rather than returning an empty trail");
+    return report;
+  }
+  for (const hop of hops) {
+    const where = resolveInTarget(run, hop.target, hop.file);
+    report.check(`${hop.target}:${hop.file}`, where.ok, where.note);
+  }
+  return report;
+});
+
+/**
+ * Candidate fixes that hold together — and a document that agrees with them.
+ *
+ * Three checks, none of them about whether a fix is any GOOD; that is the
+ * reader's call and no gate should pretend to it. What IS checkable: each
+ * option lands in a repo this run knows, the files it names are really there,
+ * and the write-up leads with the same option the envelope ranks first. That
+ * last one matters because the ordering carries the recommendation — a document
+ * that opens on option two is recommending something the envelope does not.
+ */
+export const options_sound: Gate = named("options_sound", (envelope, run) => {
+  const report = new GateReport();
+  const options =
+    (envelope as { options?: { name: string; target: string; files?: string[] }[] }).options ?? [];
+  if (!options.length) {
+    report.check("options", false, "no options proposed");
+    return report;
+  }
+  for (const option of options) {
+    for (const file of option.files ?? []) {
+      const where = resolveInTarget(run, option.target, file);
+      report.check(`${option.name} → ${option.target}:${file}`, where.ok, where.note);
+    }
+  }
+
+  // The recommendation is the ORDER, so the document has to open on it.
+  const first = options[0]!;
+  const doc = envelope.artifacts.find((a) => a.endsWith(".md"));
+  if (!doc) {
+    report.check("write-up", false, "no .md artifact declared — the options need somewhere to be read");
+    return report;
+  }
+  const full = resolveArtifact(run, doc);
+  if (!existsSync(full)) {
+    report.check(doc, false, "declared write-up does not exist"); // artifacts_exist says more
+    return report;
+  }
+  const heading = readFileSync(full, "utf8")
+    .split("\n")
+    .find((line) => line.startsWith("## "));
+  const leads = Boolean(heading && heading.includes(first.name));
+  report.check(
+    `${doc} leads with '${first.name}'`,
+    leads,
+    leads
+      ? "the write-up opens on the recommended option"
+      : `options[0] is '${first.name}' but the write-up opens on '${(heading ?? "(no ## heading)").trim()}' — ` +
+        `the order IS the recommendation, so these cannot disagree`,
+  );
+  return report;
+});
+
 /** At least one finding, each naming a file that exists. Scout's contract. */
 export const findings_resolve: Gate = named("findings_resolve", (envelope, run) => {
   const report = new GateReport();

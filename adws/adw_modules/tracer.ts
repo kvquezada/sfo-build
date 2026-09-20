@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS phases (
   adw_id        TEXT REFERENCES sessions,
   seq           INTEGER,
   name TEXT, kind TEXT, owner TEXT, description TEXT,
+  target        TEXT,                -- the registry row THIS phase stood in
   status        TEXT DEFAULT 'fail',
   attempt       INTEGER DEFAULT 0, retries INTEGER DEFAULT 0,
   error         TEXT,
@@ -105,7 +106,8 @@ CREATE TABLE IF NOT EXISTS processes (
 );
 CREATE TABLE IF NOT EXISTS agent_sessions (
   adw_id        TEXT REFERENCES sessions,
-  agent         TEXT,
+  agent         TEXT,                -- <agent>@<target>: one session per repo
+  target        TEXT,                -- that key's target, split out for readers
   coding_agent  TEXT, model TEXT, color TEXT,
   session_id    TEXT,
   context_tokens INTEGER,            -- window occupancy after the agent's last turn
@@ -135,6 +137,13 @@ const MIGRATIONS: [string, string, string][] = [
   ["sessions", "rating", "INTEGER"],
   ["sessions", "note", "TEXT"],
   ["sessions", "feedback_at", "TEXT"],
+  // A phase names the repo it stood in — a cross-repo run is otherwise a list
+  // of phases with no way to tell which tree each one was reading.
+  ["phases", "target", "TEXT"],
+  // agent_sessions.agent now holds `<agent>@<target>`, because its PRIMARY KEY
+  // is (adw_id, agent) and SQLite cannot ALTER one. This column carries the
+  // target on its own so a reader never has to split the string.
+  ["agent_sessions", "target", "TEXT"],
 ];
 
 export class Tracer {
@@ -306,8 +315,8 @@ export class Tracer {
     this.db
       .prepare(
         `INSERT INTO phases (phase_id, adw_id, seq, name, kind, owner, description,
-           status, attempt, retries, error, started_at, ended_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+           target, status, attempt, retries, error, started_at, ended_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
          ON CONFLICT(phase_id) DO UPDATE SET status=excluded.status,
            attempt=excluded.attempt, error=excluded.error, ended_at=excluded.ended_at`,
       )
@@ -319,6 +328,7 @@ export class Tracer {
         p.kind,
         p.owner,
         p.description,
+        p.target,
         phase.status,
         phase.attempt,
         p.retries,
@@ -384,6 +394,9 @@ export class Tracer {
   agentSessionRow(params: {
     adwId: string;
     agent: AgentConfig;
+    /** `<agent>@<target>` — what the (adw_id, agent) key actually holds. */
+    agentKey?: string;
+    target?: string;
     sessionId: string;
     contextTokens?: number;
     contextWindow?: number;
@@ -392,11 +405,11 @@ export class Tracer {
     const ts = nowIso();
     this.db
       .prepare(
-        `INSERT INTO agent_sessions (adw_id, agent, coding_agent, model, color,
+        `INSERT INTO agent_sessions (adw_id, agent, target, coding_agent, model, color,
            session_id, context_tokens, context_window, tools_json, created_at, last_used_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
          ON CONFLICT(adw_id, agent) DO UPDATE SET model=excluded.model,
-           color=excluded.color, session_id=excluded.session_id,
+           color=excluded.color, session_id=excluded.session_id, target=excluded.target,
            context_tokens=excluded.context_tokens,
            context_window=excluded.context_window,
            tools_json=excluded.tools_json,
@@ -404,7 +417,8 @@ export class Tracer {
       )
       .run(
         params.adwId,
-        params.agent.name,
+        params.agentKey ?? params.agent.name,
+        params.target ?? "",
         params.agent.coding_agent,
         params.agent.model,
         params.agent.color,

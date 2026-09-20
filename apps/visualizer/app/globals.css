@@ -410,6 +410,12 @@ a { color: inherit; text-decoration: none; }
   font-size: 11px; color: var(--text-dim);
   overflow: hidden; text-overflow: ellipsis; min-width: 0;
 }
+.wf-b-target {
+  align-self: flex-start;
+  font: 600 9px/1 var(--mono); letter-spacing: .06em;
+  color: var(--text-faint);
+  border: 1px solid var(--line); border-radius: 3px; padding: 2px 4px;
+}
 .wf-b-retry {
   font: 600 9px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase;
   color: var(--running);
@@ -422,6 +428,7 @@ a { color: inherit; text-decoration: none; }
 @container (max-width: 136px) { .wf-b-dur { display: none; } }
 @container (max-width: 112px) {
   .wf-b-desc { display: none; }
+  .wf-b-target { display: none; }
   .wf-b-top { display: block; }
   /* Floated, not stacked: status is the one thing a block must never drop, and
      a mark on its own line costs a line the name needs. */

@@ -28,6 +28,7 @@ import {
   type EnvelopeSchema,
   type GateReport,
   type Phase,
+  type ResolvedTarget,
   type UsageBreakdown,
 } from "./types.ts";
 import { agentSessionId, formatZodError, expandHome } from "./utils.ts";
@@ -57,8 +58,12 @@ export interface AgentMapEntry {
  * A model change forces a NEW id: continuing one model's context window under
  * another model is not a resume, it is a transplant.
  */
-function sessionIdFor(run: Run, agent: AgentConfig): { id: string; baseline: copilot.UsageGauge } {
-  const entry = run.agentMap[agent.name];
+function sessionIdFor(
+  run: Run,
+  agent: AgentConfig,
+  key: string,
+): { id: string; baseline: copilot.UsageGauge } {
+  const entry = run.agentMap[key];
   if (entry && entry.model === agent.model) {
     return {
       id: entry.session_id,
@@ -67,9 +72,22 @@ function sessionIdFor(run: Run, agent: AgentConfig): { id: string; baseline: cop
   }
   const salt = entry ? `:${agent.model}` : "";
   return {
-    id: agentSessionId(run.adw_id, `${agent.name}${salt}`),
+    id: agentSessionId(run.adw_id, `${key}${salt}`),
     baseline: { premium_requests: 0, nano_aiu: 0 },
   };
+}
+
+/**
+ * The key one agent's state is filed under: `scout@api`.
+ *
+ * The TARGET belongs in the key, not just the agent name. Two scout phases over
+ * two repos in one run are two different jobs — resuming the second into the
+ * first's context window would carry repo A's file tree into a session whose
+ * cwd is now repo B, and both would then fight over one agent_sessions row,
+ * one prompt directory and one envelope.json.
+ */
+export function agentKey(agent: string, target: string): string {
+  return `${agent}@${target}`;
 }
 
 /** Pull the final JSON object out of a response that may be wrapped in prose. */
@@ -97,6 +115,8 @@ function persistEnvelope(params: {
   run: Run;
   phase: Phase;
   agentName: string;
+  /** `<agent>@<target>` — the directory this agent's run is filed under. */
+  agentDirName: string;
   outputTypeName: string;
   envelope: EnvelopeBase | null;
   attempt: number;
@@ -115,7 +135,7 @@ function persistEnvelope(params: {
     params.attempt,
   );
   if (!params.envelope) return;
-  const dir = path.join(params.run.sessionDir, params.agentName);
+  const dir = path.join(params.run.sessionDir, params.agentDirName);
   mkdirSync(dir, { recursive: true });
   const record = {
     agent_name: params.agentName,
@@ -132,9 +152,12 @@ export async function execute<S extends EnvelopeSchema>(
   run: Run,
   phase: Phase,
   call: AgentCall<S>,
+  /** The repo this phase stands in. Defaults to the run's primary. */
+  target: ResolvedTarget = run.target,
 ): Promise<z.infer<S>> {
   const agent = resolveAgent(run.cfg, phase.params.owner);
-  const agentDir = path.join(run.sessionDir, agent.name);
+  const key = agentKey(agent.name, target.name);
+  const agentDir = path.join(run.sessionDir, key);
   mkdirSync(agentDir, { recursive: true });
 
   // The repo brief is one file, inlined into every system prompt. Five copies
@@ -146,12 +169,13 @@ export async function execute<S extends EnvelopeSchema>(
     repo_brief: repoBrief,
     prompt: call.prompt,
     previous_envelope: call.previous ? JSON.stringify(call.previous, null, 2) : "(none)",
-    context_handoff_dir: run.contextHandoffDir,
+    context_handoff_dir: run.handoffFor(target),
+    handoff_root: run.contextHandoffDir,
     adw_id: run.adw_id,
-    target: run.target.name,
-    repo_root: run.target.path,
-    subdir: run.target.subdir || "(whole repo)",
-    scope_dir: run.target.scope,
+    target: target.name,
+    repo_root: target.path,
+    subdir: target.subdir || "(whole repo)",
+    scope_dir: target.scope,
     agent_name: agent.name,
   };
 
@@ -170,7 +194,7 @@ export async function execute<S extends EnvelopeSchema>(
     rendered: systemText,
   });
 
-  const { id: sessionId, baseline } = sessionIdFor(run, agent);
+  const { id: sessionId, baseline } = sessionIdFor(run, agent, key);
   const tools = resolveTools(agent.coding_agent, agent.tools, agent.tools_extra);
 
   run.tracer.event({
@@ -185,6 +209,7 @@ export async function execute<S extends EnvelopeSchema>(
       session_id: sessionId,
       coding_agent: agent.coding_agent,
       purpose: agent.purpose,
+      target: target.name,
       tools, // resolved vendor names; null = every tool the CLI has
       writes: agent.writes,
       identity_file: identity.file,
@@ -208,7 +233,9 @@ export async function execute<S extends EnvelopeSchema>(
         tools,
         // Decision 7: cwd is the REPO ROOT even on a scoped target, so a
         // monorepo can be read across packages. `subdir` bounds writes, not reads.
-        cwd: run.target.path,
+        // On a cross-repo run this is the PHASE's repo — one agent, one tree,
+        // still exactly one boundary to enforce.
+        cwd: target.path,
         // Exactly two grants, and never the factory tree.
         addDirs: [identity.dir, run.sessionDir],
         homeDir: path.join(expandHome(run.cfg.defaults.data_dir), "id", agent.name, "copilot_home"),
@@ -272,13 +299,15 @@ export async function execute<S extends EnvelopeSchema>(
     return result;
   };
 
+  const view = run.viewFor(target);
+
   // What both trees looked like before this agent got its hands on them. Every
   // send in this phase — first prompt, JSON retries, gate corrections — is
   // measured against this one baseline.
-  const treeBefore = permissions.snapshot(run.target.path);
+  const treeBefore = permissions.snapshot(target.path);
 
   let result = await send(userText);
-  let parsed = await parseWithRetries(run, phase, call, result, send);
+  let parsed = await parseWithRetries(run, phase, call, key, result, send);
   let envelope = parsed.envelope;
   let attempt = parsed.attempt;
 
@@ -287,7 +316,9 @@ export async function execute<S extends EnvelopeSchema>(
   for (let gateAttempt = 1; gateAttempt <= Math.max(1, retries + 1) + 1; gateAttempt += 1) {
     const violations: string[] = [];
     for (const gate of call.gates ?? []) {
-      const report: GateReport = await gate(envelope, run);
+      // The VIEW, not the run: a gate reads `repoRoot` exactly as it always
+      // has and gets the repo this phase is standing in.
+      const report: GateReport = await gate(envelope, view);
       const found = report.violations;
       const gateName = gate.gateName ?? gate.name ?? "gate";
       run.tracer.gateRow(phase, gateName, report, gateAttempt);
@@ -313,7 +344,7 @@ export async function execute<S extends EnvelopeSchema>(
       `Your previous response failed validation:\n- ${violations.join("\n- ")}\n\n` +
         `Fix these problems, then re-emit ONLY your Report JSON.`,
     );
-    parsed = await parseWithRetries(run, phase, call, result, send);
+    parsed = await parseWithRetries(run, phase, call, key, result, send);
     envelope = parsed.envelope;
     attempt = parsed.attempt;
   }
@@ -324,8 +355,8 @@ export async function execute<S extends EnvelopeSchema>(
   let touched: string[] = [];
   try {
     touched = permissions.enforce({
-      repoRoot: run.target.path,
-      subdir: run.target.subdir,
+      repoRoot: target.path,
+      subdir: target.subdir,
       agent,
       cfg: run.cfg,
       before: treeBefore,
@@ -338,9 +369,10 @@ export async function execute<S extends EnvelopeSchema>(
       name: "permission_breach",
       payload: {
         agent: agent.name,
+        target: target.name,
         error: (breach as Error).message,
         writes: agent.writes,
-        subdir: run.target.subdir,
+        subdir: target.subdir,
         protected_files: run.cfg.defaults.protected_files,
       },
     });
@@ -360,6 +392,7 @@ export async function execute<S extends EnvelopeSchema>(
     run,
     phase,
     agentName: agent.name,
+    agentDirName: key,
     outputTypeName: call.outputTypeName,
     envelope,
     attempt,
@@ -371,12 +404,17 @@ export async function execute<S extends EnvelopeSchema>(
   run.tracer.agentSessionRow({
     adwId: run.adw_id,
     agent,
+    // The row is keyed (adw_id, agent), so the KEY is what goes in that column:
+    // two scouts over two repos are two sessions with two context figures, and
+    // one row cannot honestly hold both.
+    agentKey: key,
+    target: target.name,
     sessionId,
     contextTokens: context?.contextTokens ?? 0,
     contextWindow: context?.contextWindow ?? 0,
     tools: toolsOffered,
   });
-  run.saveAgentMap(agent.name, {
+  run.saveAgentMap(key, {
     session_id: sessionId,
     model: agent.model,
     coding_agent: agent.coding_agent,
@@ -426,6 +464,7 @@ async function parseWithRetries<S extends EnvelopeSchema>(
   run: Run,
   phase: Phase,
   call: AgentCall<S>,
+  agentDirName: string,
   first: copilot.CopilotRunResult,
   send: (prompt: string) => Promise<copilot.CopilotRunResult>,
 ): Promise<{ envelope: z.infer<S>; attempt: number }> {
@@ -445,6 +484,7 @@ async function parseWithRetries<S extends EnvelopeSchema>(
       run,
       phase,
       agentName: phase.params.owner,
+      agentDirName,
       outputTypeName: call.outputTypeName,
       envelope: null,
       attempt,

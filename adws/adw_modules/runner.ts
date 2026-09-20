@@ -41,6 +41,7 @@ import {
   type Phase,
   type PhaseParams,
   type ResolvedTarget,
+  type RunLike,
   type SfoConfig,
   type UsageBreakdown,
 } from "./types.ts";
@@ -49,10 +50,11 @@ import { ensureDir, expandHome, formatZodError, nowIso } from "./utils.ts";
 export class PhaseHandle implements AsyncDisposable {
   private finalized = false;
   private readonly clock = performance.now();
-
   constructor(
     private readonly run: Run,
     readonly phase: Phase,
+    /** The repo this phase stands in — resolved before the phase opened. */
+    readonly target: ResolvedTarget,
   ) {}
 
   /** Record detail inside this phase — printed and traced together. */
@@ -79,7 +81,7 @@ export class PhaseHandle implements AsyncDisposable {
       throw new Error("ph.call() is only valid inside an agent phase");
     }
     try {
-      return await agents.execute(this.run, this.phase, call);
+      return await agents.execute(this.run, this.phase, call, this.target);
     } catch (error) {
       // Record it here, where the message still exists: the disposer is not
       // handed the in-flight error and would otherwise write an empty reason.
@@ -131,7 +133,8 @@ export interface RunInit {
   adwId: string;
   tracer: Tracer;
   engineer: string;
-  target: ResolvedTarget;
+  /** Every `--target`, in order. The first is the run's primary. */
+  targets: ResolvedTarget[];
   promptRoot: string;
 }
 
@@ -141,7 +144,15 @@ export class Run {
   readonly tracer: Tracer;
   readonly console: Console;
   readonly engineer: string;
+  /**
+   * The PRIMARY target — the first `--target`.
+   *
+   * Every single-target ADW reads this and never learns the others exist, which
+   * is why adding cross-repo work touched none of them.
+   */
   readonly target: ResolvedTarget;
+  /** Every target this run resolved, in `--target` order. */
+  readonly targets: ResolvedTarget[];
   readonly promptRoot: string;
   readonly phases: Phase[] = [];
   readonly usage: UsageBreakdown = emptyUsage();
@@ -158,7 +169,8 @@ export class Run {
     this.adw_id = init.adwId;
     this.tracer = init.tracer;
     this.engineer = init.engineer;
-    this.target = init.target;
+    this.targets = init.targets;
+    this.target = init.targets[0]!;
     this.promptRoot = init.promptRoot;
     this.console = new Console(init.tracer, init.adwId);
     this.seq = init.tracer.maxPhaseSeq(init.adwId); // a joined run continues the sequence
@@ -179,6 +191,49 @@ export class Run {
   /** The target repo root — where every agent is spawned to work. */
   get repoRoot(): string {
     return this.target.path;
+  }
+
+  /**
+   * The registry row a phase stands in. "" means the run's primary.
+   *
+   * Resolved from what the run already holds rather than from the config, so a
+   * phase can only name a repo the run locked and guarded on the way in.
+   */
+  targetFor(name: string): ResolvedTarget {
+    if (!name) return this.target;
+    const found = this.targets.find((t) => t.name === name);
+    if (!found) {
+      throw new Error(
+        `phase targets '${name}', which this run did not resolve — it holds ` +
+          `${this.targets.map((t) => t.name).join(", ")}. Pass --target ${name} too.`,
+      );
+    }
+    return found;
+  }
+
+  /**
+   * This run, seen from another target. What gates are handed.
+   *
+   * `repoRoot` is a getter over `this.target`, so shadowing that one property
+   * on a child object redirects every derived path with it — and the prototype
+   * chain keeps the tracer, the console and the session dir identical. A gate
+   * therefore needs to know nothing about multiple repos: it reads `repoRoot`
+   * exactly as it always has and gets the one the phase is standing in.
+   */
+  viewFor(target: ResolvedTarget): RunLike {
+    return Object.create(this, { target: { value: target, enumerable: true } }) as RunLike;
+  }
+
+  /**
+   * Where an agent working in `target` writes its handoff.
+   *
+   * Namespaced by target for every run, single-target included. Two scouts in
+   * one run both write `scout.md`, and a flat directory would have the second
+   * silently overwrite the first — the failure would surface as a correlator
+   * confidently reading one repo's report twice.
+   */
+  handoffFor(target: ResolvedTarget): string {
+    return ensureDir(path.join(this.contextHandoffDir, target.name));
   }
 
   // ── agent map (adw_id -> per-agent session ids + usage baselines) ──────────
@@ -203,6 +258,11 @@ export class Run {
       throw new Error(`invalid phase params: ${formatZodError(validated.error)}`);
     }
     const p = validated.data;
+    // Resolved HERE, before the phase opens — same reason the description rule
+    // fires in the schema. A phase naming a repo this run never locked is a bug
+    // in the ADW, and it should die on the terminal rather than leave a running
+    // row in the trace for a phase that never got as far as an agent.
+    const target = this.targetFor(p.target);
     this.seq += 1;
     const phase: Phase = {
       phase_id: `${this.adw_id}_${String(this.seq).padStart(2, "0")}_${p.name}`,
@@ -224,7 +284,7 @@ export class Run {
       payload: { kind: p.kind, owner: p.owner, description: p.description },
     });
     this.console.phaseStarted(phase);
-    return new PhaseHandle(this, phase);
+    return new PhaseHandle(this, phase, target);
   }
 
   closePhase(phase: Phase): void {

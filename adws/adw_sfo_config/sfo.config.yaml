@@ -86,6 +86,27 @@ agents:
     tools: [read, search, glob, shell, write]
     writes: []
 
+  - name: correlator
+    # A DIFFERENT VENDOR from scout, for the reviewer's reason: an agent that
+    # shares the scout's failure modes believes the scout's mistakes.
+    model: claude-sonnet-5
+    thinking: high
+    color: "#34d399"
+    purpose: Read the per-repo scout reports and name the seam between them.
+    # No repo is ever opened. It reads the scout reports in the session handoff
+    # directory, which is outside every checkout — that is what lets one agent
+    # reason across repos none of them were allowed to see at once.
+    tools: [read, search, glob, write]
+    writes: []
+
+  - name: advisor
+    model: claude-sonnet-5
+    thinking: high
+    color: "#60a5fa"
+    purpose: Propose at most three candidate fixes for a traced issue, best first, with trade-offs. Proposes; never implements.
+    tools: [read, search, glob, write]
+    writes: []
+
   - name: documenter
     model: claude-haiku-4.5
     # `none` is not a preference — claude-haiku-4.5 rejects every other level

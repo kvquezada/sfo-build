@@ -18,7 +18,7 @@ import { DEFAULT_CONFIG_PATH, loadConfig, validate } from "./config.ts";
 import { Run } from "./runner.ts";
 import { acquireLock, assertClean, resolveTarget } from "./targets.ts";
 import { Tracer } from "./tracer.ts";
-import type { SfoConfig } from "./types.ts";
+import type { ResolvedTarget, SfoConfig } from "./types.ts";
 import { engineerName, expandHome, newId, resolvePrompt } from "./utils.ts";
 
 /** The factory root, derived from this file's own location. */
@@ -38,7 +38,10 @@ export function configPath(override?: string): string {
 
 export interface ParsedArgs {
   prompt: string;
+  /** The PRIMARY target: the first `--target`. Every single-target ADW reads this. */
   target: string;
+  /** Every `--target`, in the order given. Order is meaning: see adw_trace.ts. */
+  targets: string[];
   adwId?: string;
   config?: string;
   agent?: string;
@@ -53,10 +56,25 @@ export interface ParsedArgs {
  *     npm run <adw> -- --target NAME [--adw-id ID] [--agent NAME] "<prompt>"
  *
  * The prompt is the one positional; a path resolves to that file's contents.
+ *
+ * `--target` is the one flag that may REPEAT. Everything else overwrites, which
+ * is what a flag normally means; a second target is a second repo in the same
+ * run rather than a correction of the first, so those accumulate in order.
  */
 export function parseArgs(argv: string[], opts: { requirePrompt?: boolean } = {}): ParsedArgs {
   const flags: Record<string, string | boolean> = {};
   const positionals: string[] = [];
+  const targets: string[] = [];
+  // `--target` accumulates; every other flag keeps last-wins. The flags map
+  // still holds the FIRST target, so `flags["target"]` reads as it always did.
+  const take = (name: string, value: string): void => {
+    if (name === "target") {
+      targets.push(value);
+      if (typeof flags["target"] !== "string") flags["target"] = value;
+      return;
+    }
+    flags[name] = value;
+  };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i]!;
     if (!arg.startsWith("--")) {
@@ -66,12 +84,12 @@ export function parseArgs(argv: string[], opts: { requirePrompt?: boolean } = {}
     const [key, inline] = arg.slice(2).split(/=(.*)/s);
     const name = key!;
     if (inline !== undefined) {
-      flags[name] = inline;
+      take(name, inline);
       continue;
     }
     const next = argv[i + 1];
     if (next !== undefined && !next.startsWith("--")) {
-      flags[name] = next;
+      take(name, next);
       i += 1;
     } else {
       flags[name] = true;
@@ -90,7 +108,7 @@ export function parseArgs(argv: string[], opts: { requirePrompt?: boolean } = {}
     throw new Error("a prompt is required — pass it as the last argument, inline or as a file path");
   }
 
-  const parsed: ParsedArgs = { prompt, target, flags, positionals };
+  const parsed: ParsedArgs = { prompt, target, targets, flags, positionals };
   if (typeof flags["adw-id"] === "string") parsed.adwId = flags["adw-id"];
   if (typeof flags["config"] === "string") parsed.config = flags["config"];
   if (typeof flags["agent"] === "string") parsed.agent = flags["agent"];
@@ -151,21 +169,32 @@ export async function adw(options: AdwOptions): Promise<number> {
     return 2;
   }
 
-  let target;
+  let targets: ResolvedTarget[];
   try {
-    target = resolveTarget(cfg, args.target);
-    if (options.requireCleanRepo !== false) assertClean(target);
+    targets = args.targets.map((name) => resolveTarget(cfg, name));
+    if (options.requireCleanRepo !== false) for (const t of targets) assertClean(t);
   } catch (error) {
     process.stderr.write(`${(error as Error).message}\n`);
     return 2;
   }
-
   const adwId = args.adwId ?? newId(8);
 
-  let lock;
+  // One lock per distinct PATH, not per target. `api` and `front` are two rows
+  // over one oms checkout, so naming both would otherwise deadlock the run
+  // against itself on the second acquire.
+  const locks: (Disposable & { path: string })[] = [];
+  const releaseLocks = () => {
+    for (const held of locks.splice(0)) held[Symbol.dispose]();
+  };
   try {
-    lock = acquireLock(cfg, target, adwId);
+    const locked = new Set<string>();
+    for (const t of targets) {
+      if (locked.has(t.path)) continue;
+      locked.add(t.path);
+      locks.push(acquireLock(cfg, t, adwId));
+    }
   } catch (error) {
+    releaseLocks(); // a later target's refusal must not strand an earlier lock
     process.stderr.write(`${(error as Error).message}\n`);
     return 2;
   }
@@ -180,7 +209,7 @@ export async function adw(options: AdwOptions): Promise<number> {
     adwId,
     tracer,
     engineer: engineerName(),
-    target,
+    targets,
     promptRoot: promptRoot(),
   });
 
@@ -188,14 +217,21 @@ export async function adw(options: AdwOptions): Promise<number> {
     adwId,
     engineer: run.engineer,
     adwName: options.name,
-    target: target.name,
-    repoPath: target.path,
+    // Every target the run drove, in order — a one-target run is unchanged, and
+    // a cross-repo run is visible as such in the session list and its filter.
+    target: targets.map((t) => t.name).join("+"),
+    repoPath: [...new Set(targets.map((t) => t.path))].join(" "),
   });
   // This process IS the run. Record it before any phase opens, so a run that
   // hangs in its first agent call is still killable by adw_id.
   tracer.processStart(adwId, "adw", "", process.pid, [options.name, ...options.argv].join(" "));
-  finalizeWhenKilled(run, () => lock[Symbol.dispose]());
-  run.console.sessionStarted(adwId, run.engineer, target.name, target.path);
+  finalizeWhenKilled(run, releaseLocks);
+  run.console.sessionStarted(
+    adwId,
+    run.engineer,
+    targets.map((t) => t.name).join(" + "),
+    [...new Set(targets.map((t) => t.path))].join("\n        "),
+  );
 
   try {
     return await options.body(run, args);
@@ -204,7 +240,7 @@ export async function adw(options: AdwOptions): Promise<number> {
     process.stderr.write(`\n${(error as Error).message ?? String(error)}\n`);
     return run.finish(false, (error as Error).message ?? String(error));
   } finally {
-    lock[Symbol.dispose]();
+    releaseLocks();
     tracer.close();
   }
 }

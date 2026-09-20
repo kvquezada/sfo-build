@@ -13,6 +13,7 @@ npm run doctor                                          # validate the roster, l
 
 npm run scout -- --target api  "where is order-stage enforced"
 npm run sdlc  -- --target api  "add pagination to GET /customers"
+npm run trace -- --target front --target api  "why does the stage badge go stale"
 
 npm run sessions ; npm run phases -- <id> ; npm run tail -- <id>
 ```
@@ -36,6 +37,7 @@ before anything downstream believes it.
 |---|---|
 | `prompt` | one agent, one prompt |
 | `scout` | read-only recon |
+| `trace` | scout ×N repos → correlate → advise. Read-only, crosses checkouts |
 | `plan` | a spec, then stop |
 | `build` | build → test → commit |
 | `bt` | build → test ⟲ fix → commit |
@@ -56,6 +58,19 @@ belongs on record even though the tests would answer a question nobody asked.
 `sdlc` produces three commits from three authors — the spec, the code and the
 write-up each in their own commit, each message written by the agent that
 produced that work.
+
+`trace` is the only row that resolves more than one repo, and `--target` is the
+only flag that may repeat. Each phase stands in exactly one checkout — one cwd,
+one write boundary, nothing widened — and the order you name them in IS the
+request path: the first is where the request starts. What actually spans the
+repos is code, not an agent: `hops_resolve` stands outside every checkout and
+stats each claimed path against the one it was claimed in, so the correlator
+proposes a trail through trees it was never allowed to open and the harness
+walks it. It ends in two files in the session handoff directory — `trace.md`,
+what IS and where the two sides disagree, and `fixes.md`, at most three options
+with their costs. The order of those options is the recommendation; there is no
+separate field to disagree with it, and a fourth option is refused by the parser
+rather than asked against in a prompt. Nothing is written to any repo.
 
 `ship` is the last mile, and it runs on commits that already exist. The branch
 name is derived from them rather than asked of a model — `feat` → `feature/`,

@@ -10,7 +10,7 @@ import type {
   PhaseRow,
   SessionRow,
 } from "@/lib/db.ts";
-import { alpha, callOk, geometry, lanes, span, ts } from "@/lib/trace.ts";
+import { agentFor, alpha, callOk, geometry, lanes, span, ts } from "@/lib/trace.ts";
 import { compact, num } from "@/lib/format.ts";
 import { PhaseDetail } from "@/components/PhaseDetail.tsx";
 import { useSelection } from "@/components/Crumbs.tsx";
@@ -61,6 +61,12 @@ export function Waterfall({
   const rows = useMemo(
     () => lanes(session, phases, agents, windows),
     [session, phases, agents, windows],
+  );
+  // One repo means the session header already names it; per-block chips would
+  // repeat the same word down the whole run.
+  const crossRepo = useMemo(
+    () => new Set(phases.map((p) => p.target ?? "").filter(Boolean)).size > 1,
+    [phases],
   );
   const geo = useMemo(() => geometry(session, phases, now), [session, phases, now]);
 
@@ -201,7 +207,7 @@ export function Waterfall({
                         borderColor:
                           p.status === "fail" ? "var(--fail)" : alpha(lane.color, 0.55),
                       }}
-                      title={`${p.name} — ${p.status}${p.description ? `\n${p.description}` : ""}`}
+                      title={`${p.name} — ${p.status}${p.target ? ` · ${p.target}` : ""}${p.description ? `\n${p.description}` : ""}`}
                       onClick={() =>
                         setSelected(p.phase_id === selected ? null : p.phase_id)
                       }
@@ -215,6 +221,11 @@ export function Waterfall({
                           <span className="wf-b-dur">{span(ms)}</span>
                         ) : null}
                       </span>
+                      {/* Only where it disambiguates: on a run that crossed
+                          repos, which tree this phase was reading. */}
+                      {crossRepo && p.target ? (
+                        <span className="wf-b-target">{p.target}</span>
+                      ) : null}
                       <span className="wf-b-desc">{p.description}</span>
                       {p.attempt > 0 ? (
                         <span className="wf-b-retry">retry {p.attempt}</span>
@@ -261,7 +272,7 @@ export function Waterfall({
       {phase ? (
         <PhaseDetail
           phase={phase}
-          agent={agents.find((a) => a.agent === phase.owner) ?? null}
+          agent={agentFor(agents, phase.owner, phase.target ?? "") ?? null}
           events={events.filter((e) => e.phase_id === phase.phase_id)}
           gates={gates.filter((g) => g.phase_id === phase.phase_id)}
           envelopes={envelopes.filter((e) => e.phase_id === phase.phase_id)}

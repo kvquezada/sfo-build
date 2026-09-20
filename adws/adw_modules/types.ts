@@ -32,6 +32,15 @@ export const PhaseParams = z
     owner: z.string().min(1), // engineer's name, "git", or an agent from the roster
     description: z.string(), // REQUIRED: what this phase does and why — see below
     retries: z.number().int().min(0).default(0), // gate-failure correction turns
+    /**
+     * Which registry row this phase stands in. "" means the run's primary
+     * target — the first `--target` — which is every single-target ADW.
+     *
+     * A run resolves N targets; a PHASE picks one. That is the whole of
+     * cross-repo work: the agent's cwd, its write boundary and the root its
+     * claimed paths are checked against all follow this name, not the run's.
+     */
+    target: z.string().default(""),
   })
   .superRefine((params, ctx) => {
     // A phase name identifies; a description explains. Both are required.
@@ -129,6 +138,58 @@ export const ScoutOutput = EnvelopeBase.extend({
   findings: z.array(ScoutFinding).default([]),
 });
 export type ScoutOutput = z.infer<typeof ScoutOutput>;
+
+/**
+ * One stop on a request path, in the repo it lives in.
+ *
+ * A finding is a path; a hop is a path AND which checkout it belongs to. That
+ * second half is what makes a cross-repo claim checkable — `hops_resolve` stats
+ * `file` under `target`'s own root, so the harness verifies a trail through
+ * trees no single agent was ever allowed to open.
+ */
+export const TraceHop = z.object({
+  target: z.string(), // a registry name, not a path
+  file: z.string(),
+  note: z.string().default(""),
+});
+export type TraceHop = z.infer<typeof TraceHop>;
+
+/** A request path across repos, and the seam where the two sides disagree. */
+export const TraceOutput = EnvelopeBase.extend({
+  hops: z.array(TraceHop).default([]), // ordered along the request path
+  seam: z.string().default(""),
+});
+export type TraceOutput = z.infer<typeof TraceOutput>;
+
+/** One candidate fix: what would change, what it buys, what it costs. */
+export const FixOption = z.object({
+  name: z.string().min(1),
+  target: z.string(), // which repo the change lands in
+  files: z.array(z.string()).default([]),
+  pros: z.array(z.string()).min(1),
+  // An option with no stated cost is an option nobody thought through. The
+  // floor is here rather than in a prompt so it is refused, not requested.
+  cons: z.array(z.string()).min(1),
+  effort: z.enum(["small", "medium", "large"]),
+});
+export type FixOption = z.infer<typeof FixOption>;
+
+/**
+ * Candidate fixes for a traced issue. ORDERED: `options[0]` is the recommendation.
+ *
+ * There is no `recommended` field on purpose. A name alongside a list is two
+ * statements that can disagree — a recommendation naming an option that was
+ * edited away, or ranked third. The order IS the verdict, so there is only one
+ * statement to be wrong about.
+ *
+ * `.max(3)` is a ceiling the parser enforces: a fourth option is a parse
+ * failure that re-prompts the same session, not a line in a prompt that a model
+ * may or may not honour.
+ */
+export const OptionsOutput = EnvelopeBase.extend({
+  options: z.array(FixOption).min(1).max(3),
+});
+export type OptionsOutput = z.infer<typeof OptionsOutput>;
 
 /** One thing the request (or plan) asked for, and whether it is there. */
 export const ReviewFinding = z.object({
@@ -596,7 +657,10 @@ export interface AgentResult {
 export interface RunLike {
   cfg: SfoConfig;
   adw_id: string;
+  /** The phase's target — `repoRoot` follows it. See Run.viewFor. */
   target: ResolvedTarget;
+  /** Every target this run resolved, in `--target` order. */
+  targets: ResolvedTarget[];
   repoRoot: string;
   sessionDir: string;
   contextHandoffDir: string;

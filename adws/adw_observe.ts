@@ -57,13 +57,13 @@ function sessions(db: DatabaseSync, limit: number): void {
     return;
   }
   process.stdout.write(
-    `${BOLD}${"adw_id".padEnd(10)}${"target".padEnd(8)}${"status".padEnd(10)}` +
+    `${BOLD}${"adw_id".padEnd(10)}${"target".padEnd(16)}${"status".padEnd(10)}` +
       `${"cost".padEnd(9)}${"when".padEnd(11)}what${RESET}\n`,
   );
   for (const row of rows) {
     const status = String(row["status"] ?? "");
     process.stdout.write(
-      `${String(row["adw_id"]).padEnd(10)}${String(row["target"] ?? "").padEnd(8)}` +
+      `${String(row["adw_id"]).padEnd(10)}${clip(String(row["target"] ?? ""), 15).padEnd(16)}` +
         `${mark(status)} ${status.padEnd(8)}${money(Number(row["nano_aiu"] ?? 0)).padEnd(9)}` +
         `${ago(row["started_at"] as string).padEnd(11)}` +
         `${DIM}${String(row["adw_name"] ?? "")}${RESET} ` +

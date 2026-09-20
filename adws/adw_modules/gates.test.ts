@@ -14,28 +14,43 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import * as gates from "./gates.ts";
-import { GateReport, SfoConfig, type EnvelopeBase, type Gate, type RunLike } from "./types.ts";
+import {
+  GateReport,
+  OptionsOutput,
+  SfoConfig,
+  type EnvelopeBase,
+  type Gate,
+  type RunLike,
+} from "./types.ts";
 
 let root: string;
 let repoRoot: string;
+/** A SECOND checkout, so the cross-repo gates have a real other tree to stat. */
+let otherRoot: string;
 let sessionDir: string;
 let elsewhere: string;
 let run: RunLike;
 
+const target = (name: string, repoPath: string) => ({
+  name, path: repoPath, scope: repoPath, subdir: "",
+  test: [], lint: [], typecheck: [], build: [],
+  base_branch: "master", remote: "origin",
+});
+
 beforeEach(() => {
   root = mkdtempSync(path.join(tmpdir(), "sfo-gates-"));
   repoRoot = path.join(root, "repo");
+  otherRoot = path.join(root, "other");
   sessionDir = path.join(root, "session");
   elsewhere = path.join(root, "copilot_home");
-  for (const dir of [repoRoot, sessionDir, elsewhere]) mkdirSync(dir, { recursive: true });
+  for (const dir of [repoRoot, otherRoot, sessionDir, elsewhere]) {
+    mkdirSync(dir, { recursive: true });
+  }
   run = {
     cfg: SfoConfig.parse({}),
     adw_id: "test",
-    target: {
-      name: "t", path: repoRoot, scope: repoRoot, subdir: "",
-      test: [], lint: [], typecheck: [], build: [],
-      base_branch: "master", remote: "origin",
-    },
+    target: target("t", repoRoot),
+    targets: [target("t", repoRoot), target("other", otherRoot)],
     repoRoot,
     sessionDir,
     contextHandoffDir: path.join(sessionDir, "context_handoff"),
@@ -168,5 +183,123 @@ describe("verdict_consistent", () => {
     expect(
       (await run_(gates.verdict_consistent, envelope({ approved: false, blocking: ["no tests"], findings: [] }))).passed,
     ).toBe(true);
+  });
+});
+
+/**
+ * The cross-repo half. An agent only ever saw one of these trees; the gate
+ * stands outside both and checks the trail anyway.
+ */
+describe("hops_resolve", () => {
+  const hop = (target: string, file: string) => ({ target, file, note: "" });
+
+  test("accepts a trail whose hops land in two different repos", async () => {
+    writeFileSync(path.join(repoRoot, "caller.ts"), "post()");
+    writeFileSync(path.join(otherRoot, "handler.ts"), "route()");
+    const report = await run_(
+      gates.hops_resolve,
+      envelope({ hops: [hop("t", "caller.ts"), hop("other", "handler.ts")] }),
+    );
+    expect(report.passed).toBe(true);
+    expect(report.checks).toHaveLength(2);
+  });
+
+  test("refuses a hop whose file is missing in the repo it names", async () => {
+    writeFileSync(path.join(repoRoot, "handler.ts"), "route()");
+    // The file exists — in the OTHER repo. Resolving against the named target
+    // is the entire point: the same path is true in one tree and false here.
+    const report = await run_(gates.hops_resolve, envelope({ hops: [hop("other", "handler.ts")] }));
+    expect(report.passed).toBe(false);
+    expect(report.violations[0]).toContain("does not exist");
+  });
+
+  test("refuses a hop into a repo this run never resolved", async () => {
+    const report = await run_(gates.hops_resolve, envelope({ hops: [hop("mobile", "App.swift")] }));
+    expect(report.passed).toBe(false);
+    expect(report.violations[0]).toContain("not one this run resolved");
+  });
+
+  test("refuses an empty trail", async () => {
+    const report = await run_(gates.hops_resolve, envelope({ hops: [] }));
+    expect(report.passed).toBe(false);
+  });
+});
+
+describe("options_sound", () => {
+  const writeDoc = (body: string): string => {
+    const file = path.join(sessionDir, "fixes.md");
+    writeFileSync(file, body);
+    return file;
+  };
+  const option = (over: Record<string, unknown> = {}) => ({
+    name: "retry the write", target: "t", files: [], pros: ["cheap"], cons: ["masks the bug"],
+    effort: "small", ...over,
+  });
+
+  test("accepts options whose files exist and a doc that leads with the first", async () => {
+    writeFileSync(path.join(otherRoot, "handler.ts"), "route()");
+    const doc = writeDoc("# Fixes\n\n## 1. retry the write\n\nbody\n\n## 2. widen the lock\n");
+    const report = await run_(
+      gates.options_sound,
+      envelope({
+        artifacts: [doc],
+        options: [option({ target: "other", files: ["handler.ts"] }), option({ name: "widen the lock" })],
+      }),
+    );
+    expect(report.passed).toBe(true);
+  });
+
+  test("refuses a write-up that opens on an option the envelope ranks second", async () => {
+    const doc = writeDoc("## 1. widen the lock\n\nbody\n");
+    const report = await run_(
+      gates.options_sound,
+      envelope({ artifacts: [doc], options: [option(), option({ name: "widen the lock" })] }),
+    );
+    expect(report.passed).toBe(false);
+    expect(report.violations[0]).toContain("the order IS the recommendation");
+  });
+
+  test("refuses an option naming a file that is not in the repo it claims", async () => {
+    const doc = writeDoc("## 1. retry the write\n");
+    const report = await run_(
+      gates.options_sound,
+      envelope({ artifacts: [doc], options: [option({ files: ["nope.ts"] })] }),
+    );
+    expect(report.passed).toBe(false);
+  });
+
+  test("refuses options with nowhere to read them", async () => {
+    const report = await run_(gates.options_sound, envelope({ artifacts: [], options: [option()] }));
+    expect(report.passed).toBe(false);
+  });
+});
+
+/**
+ * The ceiling on options is the PARSER's, not a gate's — a fourth option never
+ * reaches a gate at all, it fails to parse and re-prompts the same session.
+ */
+describe("OptionsOutput", () => {
+  const option = (name: string) => ({
+    name, target: "t", files: [], pros: ["a"], cons: ["b"], effort: "small",
+  });
+  const base = { status: "success", summary: "", artifacts: [], notes_for_next_agent: "" };
+
+  test("refuses a fourth option", () => {
+    const parsed = OptionsOutput.safeParse({ ...base, options: ["a", "b", "c", "d"].map(option) });
+    expect(parsed.success).toBe(false);
+  });
+
+  test("refuses an option with no stated cost", () => {
+    const parsed = OptionsOutput.safeParse({
+      ...base,
+      options: [{ ...option("a"), cons: [] }],
+    });
+    expect(parsed.success).toBe(false);
+  });
+
+  test("accepts three options, best first", () => {
+    const parsed = OptionsOutput.safeParse({ ...base, options: ["a", "b", "c"].map(option) });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.options[0]!.name).toBe("a");
   });
 });
