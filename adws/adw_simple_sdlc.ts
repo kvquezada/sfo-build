@@ -72,7 +72,7 @@ main(
         commit_message: string;
         summary: string;
       }): void => {
-        const message = envelope.commit_message || `sfo(${run.adw_id}): ${envelope.summary}`;
+        const message = envelope.commit_message || `chore(${run.adw_id}): ${envelope.summary}`;
         ph.log({ sha: git.commitAll(message, repo), message });
       };
 

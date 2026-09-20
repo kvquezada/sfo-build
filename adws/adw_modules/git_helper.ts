@@ -105,6 +105,27 @@ export function changedFiles(cwd: string): string[] {
     .map((line) => line.slice(3));
 }
 
+/** `<type>[(scope)][!]: <description>` — the Conventional Commits v1.0.0 subject. */
+const CONVENTIONAL = /^[a-z]+(\([^)]+\))?!?: .+/;
+
+/**
+ * Reduce an agent's proposed message to one Conventional Commits subject.
+ *
+ * Every commit this factory makes is a subject and nothing else: no body, no
+ * footers. An agent asked for one line sometimes writes three, so the rule is
+ * enforced here rather than hoped for in seven call sites — the first non-empty
+ * line wins and the rest is dropped.
+ *
+ * A subject that does not already carry a type is given `chore`. That is a
+ * guess, but a conforming guess beats a commit history that only mostly parses;
+ * the prompts ask each agent for the honest type, and this catches the ones
+ * that forget.
+ */
+export function subjectLine(message: string): string {
+  const first = message.split("\n").map((line) => line.trim()).find(Boolean) ?? "";
+  return CONVENTIONAL.test(first) ? first : `chore: ${first}`;
+}
+
 /**
  * Stage the working tree and commit it. Returns the new short sha.
  *
@@ -122,6 +143,6 @@ export function commitAll(message: string, cwd: string): string {
   if (!git(["status", "--porcelain"], cwd)) {
     throw new GitError("nothing to commit — the preceding phases changed no files");
   }
-  git(["commit", "-m", message], cwd);
+  git(["commit", "-m", subjectLine(message)], cwd);
   return git(["rev-parse", "--short", "HEAD"], cwd);
 }

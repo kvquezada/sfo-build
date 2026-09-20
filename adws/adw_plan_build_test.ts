@@ -125,7 +125,7 @@ main(
           owner: "git",
           description: "Land the code only after the suite came back green",
         });
-        const message = build.commit_message || `sfo(${run.adw_id}): ${build.summary}`;
+        const message = build.commit_message || `chore(${run.adw_id}): ${build.summary}`;
         ph.log({ sha: git.commitAll(message, run.target.path), message });
         ph.done();
       }

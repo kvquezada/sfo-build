@@ -87,7 +87,7 @@ main(
           owner: "git",
           description: "Land the builder's changes, in the words the builder wrote for them",
         });
-        const message = build.commit_message || `sfo(${run.adw_id}): ${build.summary}`;
+        const message = build.commit_message || `chore(${run.adw_id}): ${build.summary}`;
         ph.log({ sha: git.commitAll(message, run.target.path), message });
         ph.done();
       }

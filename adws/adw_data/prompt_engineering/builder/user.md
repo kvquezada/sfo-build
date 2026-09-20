@@ -53,9 +53,20 @@ no code fence:
   "summary": "<one sentence describing what you built>",
   "changed_files": ["apps/api/src/customers/customers.service.ts"],
   "artifacts": [],
-  "commit_message": "<imperative one-line git subject for THE CODE YOU CHANGED — this is what the commit of your work will say>",
+  "commit_message": "<Conventional Commits subject for THE CODE YOU CHANGED — e.g. 'feat(customers): add cursor pagination'>",
   "notes_for_next_agent": "<how a reviewer should verify this, and anything you decided that the plan did not specify>"
 }
 ```
 
 `changed_files` must be repo-relative paths that exist on disk right now.
+
+### Commit subject
+
+`commit_message` follows Conventional Commits v1.0.0 — `<type>(<scope>): <description>`,
+with `<type>` one of `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`,
+`build`, `ci`, `chore`, `revert`, and `(<scope>)` optional. Breaking change: `!`
+before the colon.
+
+The subject is the whole message. Write no body and no footers — anything after
+the first line is dropped before the commit is made.
+

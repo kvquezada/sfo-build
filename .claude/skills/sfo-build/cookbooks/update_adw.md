@@ -31,6 +31,10 @@ intact — not a cold restart.
   deliberate.
 - **Do not let an agent do a code phase's job.** If the step is a known command,
   it is `quality.ts` or `git_helper.ts`, not a prompt.
+- **`commit_message` is a Conventional Commits subject** — `<type>(<scope>): <description>`,
+  one line, no body and no footers. `git_helper.subjectLine` enforces that on the way
+  to `git commit`, so a prompt that asks for anything else is asking for text that gets
+  thrown away.
 - **Do not reuse one agent's `commit_message` for another agent's diff.** Each
   envelope's message describes its own work product. That is why `PlanOutput`,
   `BuildOutput` and `DocumentOutput` each carry their own.

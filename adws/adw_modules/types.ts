@@ -106,13 +106,16 @@ export const PlanOutput = EnvelopeBase.extend({
   // implementation it describes. Each agent's commit_message covers its own
   // work product, so a chain that commits per step never reuses one agent's
   // words for another agent's diff.
+  //
+  // A Conventional Commits subject, and only the subject: git_helper.subjectLine
+  // drops any body or footers before the commit is made.
   commit_message: z.string().default(""),
 });
 export type PlanOutput = z.infer<typeof PlanOutput>;
 
 export const BuildOutput = EnvelopeBase.extend({
   changed_files: z.array(z.string()).default([]),
-  commit_message: z.string().default(""), // consumed by the git commit phase
+  commit_message: z.string().default(""), // Conventional Commits subject; see PlanOutput
 });
 export type BuildOutput = z.infer<typeof BuildOutput>;
 

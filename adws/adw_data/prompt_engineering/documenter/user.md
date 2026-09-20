@@ -70,7 +70,17 @@ after, no code fence:
   "document_path": "app_docs/{{adw_id}}_<slug>.md",
   "documented_files": ["apps/api/src/customers/customers.service.ts"],
   "artifacts": ["app_docs/{{adw_id}}_<slug>.md"],
-  "commit_message": "<imperative one-line git subject for THIS DOCUMENT — e.g. 'Document customer pagination'>",
+  "commit_message": "<Conventional Commits subject for THIS DOCUMENT — e.g. 'docs: document customer pagination'>",
   "notes_for_next_agent": ""
 }
 ```
+
+### Commit subject
+
+`commit_message` follows Conventional Commits v1.0.0 — `<type>(<scope>): <description>`,
+with `<type>` one of `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`,
+`build`, `ci`, `chore`, `revert`, and `(<scope>)` optional. Breaking change: `!`
+before the colon.
+
+The subject is the whole message. Write no body and no footers — anything after
+the first line is dropped before the commit is made.

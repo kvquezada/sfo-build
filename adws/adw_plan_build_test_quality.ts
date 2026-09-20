@@ -184,7 +184,7 @@ main(
           owner: "git",
           description: "Land the code only once every configured block came back clean",
         });
-        const message = build.commit_message || `sfo(${run.adw_id}): ${build.summary}`;
+        const message = build.commit_message || `chore(${run.adw_id}): ${build.summary}`;
         ph.log({ sha: git.commitAll(message, run.target.path), message });
         ph.done();
       }

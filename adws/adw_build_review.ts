@@ -117,7 +117,7 @@ main(
           owner: "git",
           description: "Land the code only once the reviewer signed off on it",
         });
-        const message = build.commit_message || `sfo(${run.adw_id}): ${build.summary}`;
+        const message = build.commit_message || `chore(${run.adw_id}): ${build.summary}`;
         ph.log({ sha: git.commitAll(message, run.target.path), message });
         ph.done();
       }

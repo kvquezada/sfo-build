@@ -75,10 +75,21 @@ no code fence:
   "status": "success",
   "summary": "<one sentence describing the plan>",
   "artifacts": ["{{context_handoff_dir}}/plan.md", "specs/{{adw_id}}_<slug>.md"],
-  "commit_message": "<imperative one-line git subject for committing THIS PLAN DOCUMENT, not the work it describes — e.g. 'Add spec for customer pagination'>",
+  "commit_message": "<Conventional Commits subject for committing THIS PLAN DOCUMENT, not the work it describes — e.g. 'docs(specs): add spec for customer pagination'>",
   "notes_for_next_agent": "<what the builder must know that the plan does not already say>"
 }
 ```
 
 Both `artifacts` entries are the paths you ACTUALLY wrote, `_v2` suffix and all.
 A gate opens these files; a name you meant to use fails it.
+
+### Commit subject
+
+`commit_message` follows Conventional Commits v1.0.0 — `<type>(<scope>): <description>`,
+with `<type>` one of `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`,
+`build`, `ci`, `chore`, `revert`, and `(<scope>)` optional. Breaking change: `!`
+before the colon.
+
+The subject is the whole message. Write no body and no footers — anything after
+the first line is dropped before the commit is made.
+
