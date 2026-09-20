@@ -44,6 +44,7 @@ models:
   claude-opus-5:     { context_window: 200000 }
   claude-haiku-4.5:  { context_window: 200000 }
   gpt-5.6-terra:     { context_window: 400000 }
+  gpt-5.6-luna:      { context_window: 400000 }  # declared, not measured — same tier as terra
   gemini-3.6-flash:  { context_window: 1000000 }
 
 agents:
@@ -83,6 +84,24 @@ agents:
     thinking: high
     color: "#fb7185"
     purpose: Confirm the build is what was asked for. Judges; never fixes.
+    tools: [read, search, glob, shell, write]
+    writes: []
+
+  - name: adversary
+    # The replacement shares the BUILDER's family, and that is the lesser evil.
+    # This agent's job is to catch what the REVIEWER waves through, so sharing
+    # the reviewer's model would collapse two independent judges into one
+    # opinion rendered twice — and they run concurrently precisely to be
+    # independent. Builder-family overlap costs less here because the question
+    # is about the diff on disk, not about re-deriving how it was written.
+    # claude-opus-5 would have kept both splits; it is not available on this
+    # account (doctor refuses it at validate time).
+    model: gpt-5.6-luna
+    thinking: high
+    color: "#f59e0b"
+    purpose: Hunt for what the reviewer would wave through. Judges; never fixes.
+    # Read-only like the reviewer, and for the same reason. `shell` is here to
+    # read git, not to write — `writes: []` is what actually holds the line.
     tools: [read, search, glob, shell, write]
     writes: []
 

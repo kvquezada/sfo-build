@@ -5,7 +5,7 @@
  *   npm run br -- --target api "add pagination to GET /customers"
  *
  * Phases: engineer(request) -> builder
- *         [-> reviewer -> builder(revise) ... bounded]
+ *         [-> reviewer ‖ adversary -> builder(revise) ... bounded]
  *         -> git(commit)
  *
  * Review is not testing, and neither question can answer the other's. The
@@ -23,14 +23,35 @@
  * rejection does not fail the phase; it fails the run at `finish()`, once the
  * bounded revise loop has had its chances. Approval is this chain's whole
  * acceptance criterion, so nothing is committed without it.
+ *
+ * `--adversary` adds a SECOND judge on a third vendor, running alongside the
+ * reviewer rather than after it — see review.ts for why the two must not see
+ * each other's report. Its verdict is advisory: its objections are added to
+ * what the builder must close, so it can cost a revision loop, but the commit
+ * still turns on the reviewer's own approval and nothing else. Opt-in, and the
+ * flag goes LAST, like `--ship`:
+ *
+ *   npm run br -- --target api "add pagination to GET /customers" --adversary
  */
 
 import { adw, main } from "./adw_modules/session.ts";
 import * as gates from "./adw_modules/gates.ts";
 import * as git from "./adw_modules/git_helper.ts";
-import { BuildOutput, ReviewOutput } from "./adw_modules/types.ts";
+import { mergeReviews, reviewRound } from "./adw_modules/review.ts";
+import { BuildOutput, type ReviewOutput } from "./adw_modules/types.ts";
 
-const REQUIRED_AGENTS = ["builder", "reviewer"];
+const ARGV = process.argv.slice(2);
+/**
+ * Read from argv directly, BEFORE the session opens.
+ *
+ * `requiredAgents` decides which models get probed at validate time (hard rule
+ * 1: nothing spawns until all of it has passed), so a run without the flag must
+ * not be asked to prove a model it will never spawn.
+ */
+const ADVERSARIAL = ARGV.some((a) => a === "--adversary" || a.startsWith("--adversary="));
+const REQUIRED_AGENTS = ADVERSARIAL
+  ? ["builder", "reviewer", "adversary"]
+  : ["builder", "reviewer"];
 const MAX_REVISION_LOOPS = 3;
 
 main(
@@ -71,45 +92,48 @@ main(
         ph.done();
       }
 
-      let review = null;
+      let review: ReviewOutput | null = null;
+      let adversary: ReviewOutput | null = null;
       for (let i = 1; i <= MAX_REVISION_LOOPS; i += 1) {
-        {
-          await using ph = run.phase({
-            name: `review_${i}`,
-            kind: "agent",
-            owner: "reviewer",
-            description: "Rule on every requirement in the spec, against the code on disk",
-            retries: 1,
-          });
-          review = await ph.call({
-            outputType: ReviewOutput,
-            outputTypeName: "ReviewOutput",
-            prompt: args.prompt,
-            previous: build,
-            gates: [gates.artifacts_exist, gates.verdict_consistent],
-          });
-          ph.done();
-        }
-        if (review.approved || i === MAX_REVISION_LOOPS) break;
+        ({ review, adversary } = await reviewRound({
+          run,
+          round: i,
+          prompt: args.prompt,
+          build,
+          adversarial: ADVERSARIAL,
+        }));
+        // The builder revises against ONE envelope carrying both sets of
+        // objections; the commit below still reads the reviewer's own verdict.
+        const merged = mergeReviews(review, adversary);
+        if (merged.approved || i === MAX_REVISION_LOOPS) break;
 
         await using ph = run.phase({
           name: `revise_${i}`,
           kind: "agent",
           owner: "builder",
-          description: "Close every blocking finding the reviewer named",
+          description: "Close every blocking finding the judges named",
           retries: 1,
         });
         build = await ph.call({
           outputType: BuildOutput,
           outputTypeName: "BuildOutput",
           prompt: args.prompt,
-          previous: review,
+          previous: merged,
           gates: [gates.diff_matches_claims],
         });
         ph.done();
       }
 
       const approved = review?.approved ?? false;
+      // Said out loud rather than dropped. The adversary is advisory, so a run
+      // can commit over its objections — but not silently, and the report is
+      // on disk for whoever reads the trace afterwards.
+      if (approved && adversary && !adversary.approved) {
+        run.console.warn(
+          `committing over ${adversary.blocking.length} unresolved adversary objection(s): ` +
+            adversary.blocking.join("; "),
+        );
+      }
       if (approved) {
         await using ph = run.phase({
           name: "commit",

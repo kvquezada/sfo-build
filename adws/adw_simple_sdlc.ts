@@ -6,7 +6,7 @@
  *
  * Phases: engineer(request) -> planner -> git(commit_plan)
  *         -> builder -> code(test) [-> builder(fix) -> code(test) ... bounded]
- *         -> reviewer [-> builder(revise) -> reviewer ... bounded]
+ *         -> reviewer ‖ adversary [-> builder(revise) -> reviewer ... bounded]
  *         -> code(retest, only if a revision changed code)
  *         -> git(commit_build) -> code(changes) -> documenter -> git(commit_docs)
  *         [-> ship: branch, push, PR]
@@ -29,6 +29,12 @@
  * working tree dirty — the spec is a real artifact either way, and the unfinished
  * code stays where the engineer can see it.
  *
+ * `--adversary` adds a SECOND judge on a third vendor, running alongside the
+ * reviewer rather than after it (see review.ts). Advisory: its objections join
+ * what the builder must close, so it can spend a revision loop, but `verified`
+ * still turns on a green suite and the reviewer's own approval. Opt-in, flag
+ * last, like `--ship`.
+ *
  * `--ship` appends the ship chain — branch, push, pull request — after the last
  * commit. Opt-in, because a push is outward-facing in a way a local commit is
  * not, and inside the `verified` block, so a run that never came back clean
@@ -48,15 +54,20 @@ import * as gates from "./adw_modules/gates.ts";
 import * as git from "./adw_modules/git_helper.ts";
 import * as quality from "./adw_modules/quality.ts";
 import * as ship from "./adw_modules/ship.ts";
+import { mergeReviews, reviewRound } from "./adw_modules/review.ts";
 import {
   BuildOutput,
   DocumentOutput,
   PlanOutput,
-  ReviewOutput,
   type QualityResult,
+  type ReviewOutput,
 } from "./adw_modules/types.ts";
 
-const REQUIRED_AGENTS = ["planner", "builder", "reviewer", "documenter"];
+const ARGV = process.argv.slice(2);
+/** Read before the session opens — `requiredAgents` decides what gets probed. */
+const ADVERSARIAL = ARGV.some((a) => a === "--adversary" || a.startsWith("--adversary="));
+const BASE_AGENTS = ["planner", "builder", "reviewer", "documenter"];
+const REQUIRED_AGENTS = ADVERSARIAL ? [...BASE_AGENTS, "adversary"] : BASE_AGENTS;
 const MAX_FIX_LOOPS = 3;
 const MAX_REVISION_LOOPS = 2;
 const DOCS_DIR = "app_docs";
@@ -188,40 +199,34 @@ main(
         ph.done();
       }
 
-      let review = null;
+      let review: ReviewOutput | null = null;
+      let adversary: ReviewOutput | null = null;
       let revised = false;
       for (let i = 1; i <= MAX_REVISION_LOOPS; i += 1) {
-        {
-          await using ph = run.phase({
-            name: `review_${i}`,
-            kind: "agent",
-            owner: "reviewer",
-            description: "Confirm the build is what the request and the plan asked for",
-            retries: 1,
-          });
-          review = await ph.call({
-            outputType: ReviewOutput,
-            outputTypeName: "ReviewOutput",
-            prompt: args.prompt,
-            previous: build,
-            gates: [gates.artifacts_exist, gates.verdict_consistent],
-          });
-          ph.done();
-        }
-        if (review.approved || i === MAX_REVISION_LOOPS) break;
+        ({ review, adversary } = await reviewRound({
+          run,
+          round: i,
+          prompt: args.prompt,
+          build,
+          adversarial: ADVERSARIAL,
+        }));
+        // One envelope, both sets of objections. `verified` below still reads
+        // the reviewer's own verdict — the adversary cannot hold the chain shut.
+        const merged = mergeReviews(review, adversary);
+        if (merged.approved || i === MAX_REVISION_LOOPS) break;
 
         await using ph = run.phase({
           name: `revise_${i}`,
           kind: "agent",
           owner: "builder",
-          description: "Close the reviewer's blocking findings",
+          description: "Close the judges' blocking findings",
           retries: 1,
         });
         build = await ph.call({
           outputType: BuildOutput,
           outputTypeName: "BuildOutput",
           prompt: args.prompt,
-          previous: review,
+          previous: merged,
           gates: [gates.diff_matches_claims],
         });
         revised = true;
@@ -246,6 +251,15 @@ main(
       // uncommitted and nothing is documented, because there is nothing worth
       // describing yet. The plan commit stands — it records what was asked.
       const verified = Boolean(test?.passed) && Boolean(review?.approved);
+      // Advisory, but not silent: a run may commit over the adversary's
+      // objections, and whoever reads the trace afterwards should find them
+      // said out loud rather than only in adversary.md.
+      if (verified && adversary && !adversary.approved) {
+        run.console.warn(
+          `committing over ${adversary.blocking.length} unresolved adversary objection(s): ` +
+            adversary.blocking.join("; "),
+        );
+      }
       if (verified) {
         {
           await using ph = run.phase({

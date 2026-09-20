@@ -24,9 +24,15 @@ Decide whether the work in the tree satisfies `prompt`.
 
 1. Read `{{context_handoff_dir}}/plan.md` if it exists — that is what the
    builder was told to do.
-2. Read the actual diff. `git diff HEAD` and `git status --porcelain` show you
-   the uncommitted work; `git log --oneline -5` shows what this run already
-   committed.
+2. Read the actual diff. Use `--no-optional-locks` on every git command — a
+   second judge may be reading this same checkout, and the two of you will
+   collide over `.git/index.lock` otherwise:
+
+   ```
+   git --no-optional-locks diff HEAD          # the uncommitted work
+   git --no-optional-locks status --porcelain
+   git --no-optional-locks log --oneline -5   # what this run already committed
+   ```
 3. Turn `prompt` (and the plan) into a list of concrete requirements, then
    check each one against the code you just read.
 4. Write your review to `{{context_handoff_dir}}/review.md`, then emit your

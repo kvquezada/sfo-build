@@ -64,9 +64,21 @@ copies drift within a week.
 > generated identity file opens with an explicit precedence paragraph for
 > exactly this reason.
 
-## Choose the reviewer's vendor deliberately
+## Choose the judges' vendors deliberately
 
 The reviewer is `claude-sonnet-5` while the builder is `gpt-5.6-terra`, and that
 is not arbitrary. A reviewer sharing the builder's failure modes approves the
 builder's mistakes. If you change one, check you have not accidentally made them
 the same family.
+
+The optional `adversary` (`--adversary` on `br` and `sdlc`) is a third vendor
+again — `gemini-3.6-flash` — for the same reason one step further out: it is
+there to catch what the *reviewer* waves through, so sharing the reviewer's
+family would cost most of what it is for. Three agents, three vendors, no shared
+blind spot. Changing any one of them is a decision about all three.
+
+Both judges are `writes: []` and both stand in the same checkout at the same
+time. Any read-only agent that may run concurrently with another must use
+`git --no-optional-locks` in its prompt — a plain `git status` refreshes the
+index, takes `.git/index.lock`, and the loser of the race reports the collision
+as if it were a finding about your code.

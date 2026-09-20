@@ -102,6 +102,26 @@ npm run sdlc -- --target api "..." --ship
 a push is outward-facing in a way a local commit is not, and it uses your own
 `gh` credentials rather than any the factory holds.
 
+`--adversary` adds a second judge to `br` and `sdlc`. The reviewer asks whether
+each requirement was met; the adversary asks what the change does that nobody
+asked for — silent behaviour changes, a requirement met technically and not
+practically, the unhandled path. It runs on a third vendor
+(`gemini-3.6-flash`, against the builder's `gpt-5.6-terra` and the reviewer's
+`claude-sonnet-5`) and it runs **alongside** the reviewer, not after it: both
+are given `--add-dir` onto the session directory, so a second judge that went
+second would find the first one's `review.md` and anchor on it.
+
+```bash
+npm run br -- --target api "add pagination to GET /customers" --adversary
+```
+
+Its verdict is advisory. Objections from both judges are merged into the one
+envelope the builder revises against, so the adversary can cost a revision
+loop — but the commit still turns on the reviewer's own approval, and a run
+that commits over an unresolved objection says so on the console. Like
+`--ship`, the flag goes LAST: the parser takes the next non-`--` token as a
+flag's value, so `--adversary "add pagination"` eats your prompt.
+
 ## Targets
 
 One install drives many repos. A target is a row in a flat registry:
