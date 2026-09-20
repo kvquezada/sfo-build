@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import * as db from "@/lib/db.ts";
+import { modelWindows } from "@/lib/models.ts";
 import { ago, clock, credits, duration, money, num } from "@/lib/format.ts";
 import { eventLabel } from "@/lib/trace.ts";
 import { AutoRefresh } from "@/components/AutoRefresh.tsx";
@@ -26,6 +27,8 @@ export default async function SessionPage({
   const gates = db.gates(adwId);
   const envelopes = db.envelopes(adwId);
   const events = db.events(adwId, 0, 2000);
+  // Ceilings are declared, not measured — see lib/models.ts.
+  const windows = modelWindows();
   // A chained run (`--adw-id`) goes running → success → running as the next ADW
   // joins it, so "not running right now" is not "finished forever". The page
   // keeps a slow pulse either way; only the cadence changes.
@@ -125,6 +128,7 @@ export default async function SessionPage({
           phases={phases}
           agents={agents}
           events={events}
+          windows={windows}
           gates={gates}
           envelopes={envelopes}
         />

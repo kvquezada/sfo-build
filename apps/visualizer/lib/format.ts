@@ -25,6 +25,14 @@ export function num(value: number | null | undefined): string {
   return (value ?? 0).toLocaleString();
 }
 
+/** Token counts in a lane label, where the column is too narrow for commas. */
+export function compact(value: number | null | undefined): string {
+  const n = value ?? 0;
+  if (n < 1000) return String(n);
+  if (n < 1_000_000) return `${(n / 1000).toFixed(1)}k`;
+  return `${(n / 1_000_000).toFixed(1)}M`;
+}
+
 export function clip(text: string, limit: number): string {
   return text.length <= limit ? text : `${text.slice(0, limit)}…`;
 }

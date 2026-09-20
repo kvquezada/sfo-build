@@ -230,12 +230,17 @@ a { color: inherit; text-decoration: none; }
   font: 400 11px/1.3 var(--mono); color: var(--text-faint);
   overflow: hidden; text-overflow: ellipsis;
 }
+/* Label over gauge: the word says what the number means, so a bare 6% is never
+   left to be read as a share of something else. */
 .wf-ctx {
-  display: flex; align-items: center; gap: 6px;
-  font: 400 10px/1 var(--mono); color: var(--text-faint);
+  display: flex; flex-direction: column; gap: 3px; margin-top: 2px;
+  font: 400 9px/1 var(--mono); color: var(--text-faint);
 }
+.wf-ctx-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.wf-ctx-tag { letter-spacing: 0.09em; text-transform: uppercase; }
+.wf-ctx-val { font-weight: 600; color: var(--text-dim); }
 .wf-ctx-bar {
-  flex: 1; height: 4px; border-radius: 999px;
+  height: 3px; border-radius: 999px;
   background: #00000066; border: 1px solid var(--border); overflow: hidden;
 }
 .wf-ctx-fill { display: block; height: 100%; border-radius: 999px; }

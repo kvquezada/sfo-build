@@ -25,6 +25,27 @@ observability:
   db: ~/.sfo-build/sfo.db
   poll_ms: 500
 
+# ─────────────────────────────────────────────────────────────────────────────
+#  Context ceilings — DECLARED BY YOU, not measured.
+#
+#  Copilot's `--context` is a tier (`default` | `long_context`), not a number,
+#  and no catalog exposes a window size, so the stream can never tell us one:
+#  `context_window` on every agent_sessions row is 0 and always will be. The
+#  trace UI draws its CONTEXT bar against the numbers below and says, in the
+#  tooltip, that they came from this file.
+#
+#  VERIFY THESE before trusting the percentage. They are starting values, not
+#  probed facts — nothing in this factory can check them the way the target
+#  registrar checks a test command. A model with no row here shows its token
+#  count and no percentage, which is the honest default.
+# ─────────────────────────────────────────────────────────────────────────────
+models:
+  claude-sonnet-5:   { context_window: 200000 }
+  claude-opus-5:     { context_window: 200000 }
+  claude-haiku-4.5:  { context_window: 200000 }
+  gpt-5.6-terra:     { context_window: 400000 }
+  gemini-3.6-flash:  { context_window: 1000000 }
+
 agents:
   - name: planner
     model: claude-sonnet-5

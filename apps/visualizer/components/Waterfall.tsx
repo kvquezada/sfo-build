@@ -11,7 +11,7 @@ import type {
   SessionRow,
 } from "@/lib/db.ts";
 import { alpha, callOk, geometry, lanes, span, ts } from "@/lib/trace.ts";
-import { num } from "@/lib/format.ts";
+import { compact, num } from "@/lib/format.ts";
 import { PhaseDetail } from "@/components/PhaseDetail.tsx";
 
 const GLYPH: Record<string, string> = {
@@ -34,6 +34,7 @@ export function Waterfall({
   session,
   phases,
   agents,
+  windows,
   events,
   gates,
   envelopes,
@@ -41,6 +42,8 @@ export function Waterfall({
   session: SessionRow;
   phases: PhaseRow[];
   agents: AgentSessionRow[];
+  /** Declared context ceilings by model, from sfo.config.yaml. */
+  windows: Record<string, number>;
   events: EventRow[];
   gates: GateRow[];
   envelopes: EnvelopeRow[];
@@ -48,7 +51,10 @@ export function Waterfall({
   const [selected, setSelected] = useState<string | null>(null);
   const now = useNow(session.status === "running");
 
-  const rows = useMemo(() => lanes(session, phases, agents), [session, phases, agents]);
+  const rows = useMemo(
+    () => lanes(session, phases, agents, windows),
+    [session, phases, agents, windows],
+  );
   const geo = useMemo(() => geometry(session, phases, now), [session, phases, now]);
 
   // A selection outlives a poll tick, but not a phase vanishing from the run.
@@ -129,18 +135,36 @@ export function Waterfall({
                 {lane.context ? (
                   <span
                     className="wf-ctx"
-                    title={`${num(lane.context.used)} / ${num(lane.context.window)} context tokens`}
+                    title={
+                      lane.context.pct === null
+                        ? `${num(lane.context.used)} context tokens carried into this ` +
+                          `agent's last turn. No context ceiling is declared for ` +
+                          `${lane.meta} in sfo.config.yaml, so there is no percentage ` +
+                          `to show it against.`
+                        : `${num(lane.context.used)} of ${num(lane.context.window)} ` +
+                          `context tokens. The ceiling is declared in sfo.config.yaml, ` +
+                          `not reported by the harness — Copilot exposes no window size.`
+                    }
                   >
-                    <span className="wf-ctx-bar">
-                      <span
-                        className="wf-ctx-fill"
-                        style={{
-                          width: `${Math.max(lane.context.pct, 2)}%`,
-                          background: lane.color,
-                        }}
-                      />
+                    <span className="wf-ctx-head">
+                      <span className="wf-ctx-tag">context</span>
+                      <span className="wf-ctx-val">
+                        {lane.context.pct === null
+                          ? compact(lane.context.used)
+                          : `${Math.round(lane.context.pct)}%`}
+                      </span>
                     </span>
-                    {Math.round(lane.context.pct)}%
+                    {lane.context.pct === null ? null : (
+                      <span className="wf-ctx-bar">
+                        <span
+                          className="wf-ctx-fill"
+                          style={{
+                            width: `${Math.max(lane.context.pct, 1.5)}%`,
+                            background: lane.color,
+                          }}
+                        />
+                      </span>
+                    )}
                   </span>
                 ) : null}
               </div>

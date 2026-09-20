@@ -426,9 +426,26 @@ export const TargetConfig = z.object({
 });
 export type TargetConfig = z.infer<typeof TargetConfig>;
 
+/**
+ * Context ceilings, DECLARED rather than measured.
+ *
+ * Copilot exposes `--context` as a tier and ships no catalog, so the harness
+ * can never report a window size (known impossibility 4) and `context_window`
+ * on an agent_sessions row stays 0. A ceiling therefore has to come from the
+ * operator, which is what this map is: a statement the operator owns, in the
+ * same file as the roster, that the UI attributes to this file rather than to
+ * the stream. An unlisted model has no ceiling and gets no percentage — the
+ * same fail-closed default as everywhere else, not a guessed denominator.
+ */
+export const ModelConfig = z.object({
+  context_window: z.number().int().positive(),
+});
+export type ModelConfig = z.infer<typeof ModelConfig>;
+
 export const SfoConfig = z.object({
   defaults: ConfigDefaults.default({}),
   observability: ObservabilityConfig.default({}),
+  models: z.record(z.string(), ModelConfig).default({}),
   agents: z.array(AgentConfig).default([]),
   targets: z.array(TargetConfig).default([]),
 });

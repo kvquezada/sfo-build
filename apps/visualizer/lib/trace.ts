@@ -71,8 +71,12 @@ export interface Lane {
   color: string;
   /** Second line under the lane name — the model, or what the lane is. */
   meta: string;
-  /** Context occupancy, only when both numbers are real. */
-  context: { used: number; window: number; pct: number } | null;
+  /**
+   * Context the agent carried into its last turn. `pct` is null when no
+   * ceiling is declared for the model, and the lane then shows the token
+   * count alone rather than a percentage of nothing.
+   */
+  context: { used: number; window: number | null; pct: number | null } | null;
   phases: PhaseRow[];
 }
 
@@ -85,6 +89,7 @@ export function lanes(
   session: SessionRow,
   phases: PhaseRow[],
   agents: AgentSessionRow[],
+  windows: Record<string, number> = {},
 ): Lane[] {
   const out: Lane[] = [
     {
@@ -123,7 +128,7 @@ export function lanes(
       kind: "agent",
       color: info?.color || AGENT_FALLBACK[i % AGENT_FALLBACK.length] || "#c084fc",
       meta: info?.model ?? "agent",
-      context: laneContext(info),
+      context: laneContext(info, windows),
       phases: phases.filter((p) => p.kind === "agent" && p.owner === owner),
     });
   }
@@ -131,17 +136,25 @@ export function lanes(
 }
 
 /**
- * Occupancy for an agent lane, or null.
+ * Window occupancy for an agent lane.
  *
- * Both numbers must be real: `--context` is a tier rather than a number on
- * Copilot, so `context_window` is routinely 0, and a bar drawn against an
- * unknown ceiling is decoration wearing a percentage.
+ * The numerator is measured and the denominator is declared, and they come
+ * from different places on purpose: `context_tokens` is what the stream
+ * reported, while the ceiling is whatever the operator wrote in
+ * sfo.config.yaml, because Copilot's `--context` is a tier and no catalog
+ * exposes a size. A model the config does not list yields `pct: null` — the
+ * lane shows what it measured and claims nothing about how full it is.
+ *
+ * If a harness ever DOES report a real window, that number wins: a measured
+ * ceiling beats a declared one.
  */
-function laneContext(info: AgentSessionRow | undefined) {
+function laneContext(info: AgentSessionRow | undefined, windows: Record<string, number>) {
   const used = info?.context_tokens ?? 0;
-  const window = info?.context_window ?? 0;
-  if (!used || !window) return null;
-  return { used, window, pct: Math.min(100, (used / window) * 100) };
+  if (!used) return null;
+  const reported = info?.context_window ?? 0;
+  const ceiling = reported > 0 ? reported : (windows[info?.model ?? ""] ?? 0);
+  if (!ceiling) return { used, window: null, pct: null };
+  return { used, window: ceiling, pct: Math.min(100, (used / ceiling) * 100) };
 }
 
 // ── timeline ─────────────────────────────────────────────────────────────────
