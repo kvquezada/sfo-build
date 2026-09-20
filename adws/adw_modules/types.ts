@@ -64,7 +64,14 @@ export const PhaseParams = z
           `phase name — say what it does and why instead.`,
       });
     }
-  });
+  })
+  // Normalize after validating, so what reaches the console, the trace and the
+  // phase block in the UI is one clean line. A description written across three
+  // indented source lines is still one sentence; it should not render as three.
+  .transform((params) => ({
+    ...params,
+    description: params.description.split(/\s+/).filter(Boolean).join(" "),
+  }));
 export type PhaseParams = z.infer<typeof PhaseParams>;
 
 /** The persisted phase record — PhaseParams plus lifecycle. */

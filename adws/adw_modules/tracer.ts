@@ -172,7 +172,12 @@ export class Tracer {
       .run(
         eventId,
         record.adw_id,
-        record.phase_id ?? "",
+        // NULL, not "": a session-scoped event (the opening banner, a kill
+        // notice) genuinely belongs to no phase, and node:sqlite enforces
+        // foreign keys by default where Python's sqlite3 does not. "" is not a
+        // phase_id anyone ever inserted, so it fails the constraint; NULL is
+        // the honest value and FKs permit it.
+        record.phase_id || null,
         record.parent_id ?? "",
         record.type,
         record.name ?? "",
