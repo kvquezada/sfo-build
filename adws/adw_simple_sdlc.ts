@@ -9,6 +9,7 @@
  *         -> reviewer [-> builder(revise) -> reviewer ... bounded]
  *         -> code(retest, only if a revision changed code)
  *         -> git(commit_build) -> code(changes) -> documenter -> git(commit_docs)
+ *         [-> ship: branch, push, PR]
  *
  * Three commits, three work products, three authors. The plan, the code and the
  * write-up each land in their own commit, and each message is the words of the
@@ -28,6 +29,11 @@
  * working tree dirty — the spec is a real artifact either way, and the unfinished
  * code stays where the engineer can see it.
  *
+ * `--ship` appends the ship chain — branch, push, pull request — after the last
+ * commit. Opt-in, because a push is outward-facing in a way a local commit is
+ * not, and inside the `verified` block, so a run that never came back clean
+ * leaves nothing on a remote.
+ *
  * The documenter measures against the commit this run STARTED from, not against
  * main, because by then the run has moved main itself. That baseline is pinned
  * before the first commit phase and printed in the request phase.
@@ -41,6 +47,7 @@ import * as changes from "./adw_modules/changes.ts";
 import * as gates from "./adw_modules/gates.ts";
 import * as git from "./adw_modules/git_helper.ts";
 import * as quality from "./adw_modules/quality.ts";
+import * as ship from "./adw_modules/ship.ts";
 import {
   BuildOutput,
   DocumentOutput,
@@ -317,6 +324,14 @@ main(
           });
           commit(ph, document);
           ph.done();
+        }
+
+        // Opt-in, and only here: three commits that were tested, reviewed and
+        // written up are a complete unit of work, which is the only thing worth
+        // putting in front of a reviewer.
+        if (args.flags["ship"] === true) {
+          const shipped = await ship.ship(run, ship.optionsFrom(args.flags));
+          if (shipped.pr_url) run.console.note(`pull request: ${shipped.pr_url}`);
         }
       }
 

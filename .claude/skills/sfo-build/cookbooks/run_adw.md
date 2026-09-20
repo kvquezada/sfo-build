@@ -18,12 +18,14 @@ Read [prompting.md](prompting.md) first — a weak prompt wastes a whole run.
 | `npm run pbt` | plan → build → test ⟲ fix → commit | real work, shape is clear, no review needed |
 | `npm run pbtq` | plan → build → verify → test ⟲ fix → commit | green means more than the suite here — lint or typecheck gate too |
 | `npm run sdlc` | plan → build → test ⟲ fix → review ⟲ revise → commit ×3 → document | the work is real and its shape is not obvious |
+| `npm run ship` | branch → push → pull request | work is committed and ready for a reviewer. No agents, no cost |
 
 Pick by **what has to be true before the code lands**, not by how many phases
 the row has. Each chain commits on its own acceptance criterion and nothing
 else's: `pbt` on a green suite, `br` on the reviewer, `pbtq` on every block the
 target configures, `pb` on neither. Two of them commit nothing at all —
-`quality` and `document` only report.
+`quality` and `document` only report, and `ship` commits nothing because it runs
+on commits that already exist.
 
 Every one takes `--target NAME` and a prompt:
 
@@ -43,6 +45,60 @@ engineer reading the spec in between.
 is measured from (`main` by default). It and `npm run quality` are also the two
 chains that run on a dirty tree on purpose — `quality` spawns no agent at all,
 and documenting after a build means the build is usually still uncommitted.
+
+## Shipping
+
+`npm run ship` is the last mile: it takes commits that already exist and puts
+them in front of a reviewer.
+
+```bash
+npm run ship -- --target api --dry-run   # derive and render, touch nothing
+npm run ship -- --target api
+npm run ship -- --target api --draft --branch feature/pagination
+```
+
+| flag | |
+|---|---|
+| `--dry-run` | print the branch, title and body a real run would produce, then stop |
+| `--branch N` | override the derived name |
+| `--template P` | override the body template for this run |
+| `--draft` | open the PR as a draft |
+| `--no-pr` | branch and push, open nothing |
+| `--no-rewind` | leave the local trunk where the run left it |
+
+The branch is **derived from the commits**, never from a model: `feat` →
+`feature/`, else `fix` → `fix/`, else `chore/`, and the slug comes from the
+first commit of the winning type. A `docs:` commit never names the branch. A
+name already taken gets the `adw_id` appended.
+
+The PR title is that same commit's subject, conventional prefix intact, so a
+squash-merge lands a conforming subject on the trunk. The body is rendered from
+`adws/adw_data/templates/pull_request.md` — **your file, edit it any time**, no
+code change. Placeholders: `{{title}} {{commits}} {{stat}} {{files}}
+{{file_count}} {{insertions}} {{deletions}} {{docs}} {{adw_id}} {{target}}
+{{base}} {{branch}} {{remote}}`.
+
+The range is always `<remote>/<base_branch>..HEAD`, so it reads correctly while
+you are standing on the trunk — which is where the chains leave you. Set
+`base_branch` per target in the registry; it defaults to `master`.
+
+Because the chains commit onto the trunk, after the branch is cut the local
+trunk still carries the work. So once the push succeeds, `ship` moves the local
+base ref back onto its remote (`git branch -f <base> <remote>/<base>`) — nothing
+is lost, the commits are on the pushed branch. `--no-rewind` opts out.
+
+Already standing on a feature branch? `ship` pushes that one rather than cutting
+another.
+
+`--ship` appends all of this to `npm run sdlc` and `npm run pbtq`, inside their
+`verified` block:
+
+```bash
+npm run sdlc -- --target api "add pagination" --ship
+```
+
+Opt-in, because a push is outward-facing in a way a local commit is not. It uses
+your own `gh` credentials and holds none of its own.
 
 ## Before launching
 

@@ -51,6 +51,9 @@ chain asks both, in that order, and commits only when both are satisfied.
 | `permissions.ts` | two-tree snapshot/enforce: repo scope + factory tripwire |
 | `quality.ts` | deterministic test/lint/typecheck/build from the registry |
 | `changes.ts` | deterministic diff capture for the documenter |
+| `ship.ts` | branch, push and PR phases, shared by `ship` and `--ship` |
+| `git_helper.ts` | git for code phases, and the branch name derived from commits |
+| `gh_helper.ts` | the GitHub CLI, on the operator's own credentials |
 | `tracer.ts` | `node:sqlite`, WAL, 7 tables |
 | `console.ts` | one narrative, printed and traced together |
 

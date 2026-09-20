@@ -120,17 +120,20 @@ agents:
 targets:
   - name: oms
     path: ~/Workspace/personal/oms
+    base_branch: main
     test: [npx, nx, run-many, -t, test]
     lint: [npx, nx, run-many, -t, lint]
 
   - name: api
     path: ~/Workspace/personal/oms
     subdir: apps/api
+    base_branch: main
     test: [npx, nx, run-many, -t, test]
     lint: [npx, nx, lint, api]
 
   - name: front
     path: ~/Workspace/personal/oms
     subdir: apps/front
+    base_branch: main
     test: [npx, nx, run-many, -t, test]
     lint: [npx, nx, lint, front]

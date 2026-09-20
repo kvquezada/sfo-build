@@ -6,7 +6,7 @@
  *
  * Phases: engineer(request) -> planner -> builder
  *         -> code(verify) -> code(test) [-> builder(fix) -> ... bounded]
- *         -> git(commit)
+ *         -> git(commit) [-> ship: branch, push, PR]
  *
  * `npm run pbt` gates on the suite alone. This gates on everything the target
  * registry knows how to run: lint, typecheck and build first, then the suite.
@@ -20,6 +20,11 @@
  * test, and a lint failure paid for a full test run before anyone saw it. Two
  * phases, two artifacts, two readings.
  *
+ * `--ship` appends the ship chain — branch, push, pull request — after the
+ * commit. Opt-in, because a push is outward-facing in a way a local commit is
+ * not, and it only ever runs inside the `verified` block: work that never came
+ * back clean has no business on a remote.
+ *
  * Both are CODE. A red block does not fail its phase — the runner ran, the code
  * is what failed. Whichever block broke becomes the builder's spec, verbatim
  * command output with no parser standing between the failure and the fix, and
@@ -31,6 +36,7 @@ import { adw, main } from "./adw_modules/session.ts";
 import * as gates from "./adw_modules/gates.ts";
 import * as git from "./adw_modules/git_helper.ts";
 import * as quality from "./adw_modules/quality.ts";
+import * as ship from "./adw_modules/ship.ts";
 import {
   BuildOutput,
   PlanOutput,
@@ -178,15 +184,22 @@ main(
 
       const verified = Boolean(verify?.passed) && Boolean(test?.passed);
       if (verified) {
-        await using ph = run.phase({
-          name: "commit",
-          kind: "code",
-          owner: "git",
-          description: "Land the code only once every configured block came back clean",
-        });
-        const message = build.commit_message || `chore(${run.adw_id}): ${build.summary}`;
-        ph.log({ sha: git.commitAll(message, run.target.path), message });
-        ph.done();
+        {
+          await using ph = run.phase({
+            name: "commit",
+            kind: "code",
+            owner: "git",
+            description: "Land the code only once every configured block came back clean",
+          });
+          const message = build.commit_message || `chore(${run.adw_id}): ${build.summary}`;
+          ph.log({ sha: git.commitAll(message, run.target.path), message });
+          ph.done();
+        }
+
+        if (args.flags["ship"] === true) {
+          const shipped = await ship.ship(run, ship.optionsFrom(args.flags));
+          if (shipped.pr_url) run.console.note(`pull request: ${shipped.pr_url}`);
+        }
       }
 
       return run.finish(

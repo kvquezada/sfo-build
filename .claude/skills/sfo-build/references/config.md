@@ -67,9 +67,23 @@ targets:
   - name: api
     path: ~/Workspace/personal/oms
     subdir: apps/api
+    base_branch: main
     test: [npx, nx, run-many, -t, test]
     lint: [npx, nx, lint, api]
 ```
+
+| key | default | |
+|---|---|---|
+| `path` | — | absolute repo root; agents spawn here |
+| `subdir` | `""` | soft write scope, and where quality commands run |
+| `test` `lint` `typecheck` `build` | `[]` | real argv, never a placeholder |
+| `base_branch` | `master` | the trunk `npm run ship` branches from and targets |
+| `remote` | `origin` | the remote it pushes to |
+
+`base_branch` is only read by the ship chain. The default is a guess and a wrong
+one is loud rather than silent: the fetch fails on a branch the remote does not
+have. `npm run install-target` detects it from `<remote>/HEAD` and writes it
+down, so a registered target rarely carries the default by accident.
 
 See [../cookbooks/update_targets.md](../cookbooks/update_targets.md).
 
