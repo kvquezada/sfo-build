@@ -103,6 +103,33 @@ function yamlList(argv: string[]): string {
   return `[${argv.map((a) => (/[\s:#]/.test(a) ? JSON.stringify(a) : a)).join(", ")}]`;
 }
 
+/**
+ * The branch a ship run should target, read from the remote rather than guessed.
+ *
+ * `master` is the schema default, and a wrong default only surfaces when
+ * someone ships. Asking the remote what its HEAD is costs one command here and
+ * saves that.
+ */
+function detectBaseBranch(repo: string, remote: string): string {
+  const read = (args: string[]): string => {
+    const result = spawnSync("git", args, {
+      cwd: repo,
+      encoding: "utf8",
+      env: operatorEnv(),
+      timeout: 15_000,
+    });
+    return result.status === 0 ? (result.stdout ?? "").trim() : "";
+  };
+  // The local note of where origin/HEAD points, set at clone time.
+  const symbolic = read(["symbolic-ref", "--short", `refs/remotes/${remote}/HEAD`]);
+  if (symbolic.startsWith(`${remote}/`)) return symbolic.slice(remote.length + 1);
+  // No note (a repo cloned shallow, or one whose HEAD was never set): ask.
+  const queried = read(["ls-remote", "--symref", remote, "HEAD"]);
+  const match = /^ref: refs\/heads\/(\S+)\s+HEAD$/m.exec(queried);
+  if (match) return match[1]!;
+  return read(["rev-parse", "--abbrev-ref", "HEAD"]) || "master";
+}
+
 async function main(): Promise<number> {
   const argv = process.argv.slice(2);
   const args = parseArgs(["--target", "_unused", ...argv], { requirePrompt: false });
@@ -112,7 +139,7 @@ async function main(): Promise<number> {
   if (!rawPath) {
     process.stderr.write(
       "usage: npm run install-target -- --path <repo> [--name N] [--subdir D] " +
-        '[--test "cmd"] [--lint "cmd"] [--force]\n',
+        '[--test "cmd"] [--lint "cmd"] [--base-branch B] [--remote R] [--force]\n',
     );
     return 2;
   }
@@ -194,10 +221,21 @@ async function main(): Promise<number> {
     }
   }
 
+  const remote = typeof flags["remote"] === "string" ? flags["remote"] : "origin";
+  const baseBranch =
+    typeof flags["base-branch"] === "string"
+      ? flags["base-branch"]
+      : detectBaseBranch(repo, remote);
+  process.stdout.write(
+    `${OK} ${"base branch".padEnd(16)} ${baseBranch} (ship cuts branches from ${remote}/${baseBranch})\n`,
+  );
+
   const row =
     `  - name: ${name}\n` +
     `    path: ${rawPath}\n` +
     (subdir ? `    subdir: ${subdir}\n` : "") +
+    `    base_branch: ${baseBranch}\n` +
+    (remote !== "origin" ? `    remote: ${remote}\n` : "") +
     (verified["test"] ? `    test: ${yamlList(verified["test"])}\n` : "") +
     (verified["lint"] ? `    lint: ${yamlList(verified["lint"])}\n` : "");
 

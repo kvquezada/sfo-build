@@ -31,7 +31,11 @@ beforeEach(() => {
   run = {
     cfg: SfoConfig.parse({}),
     adw_id: "test",
-    target: { name: "t", path: repoRoot, scope: repoRoot, subdir: "", test: [], lint: [], typecheck: [], build: [] },
+    target: {
+      name: "t", path: repoRoot, scope: repoRoot, subdir: "",
+      test: [], lint: [], typecheck: [], build: [],
+      base_branch: "master", remote: "origin",
+    },
     repoRoot,
     sessionDir,
     contextHandoffDir: path.join(sessionDir, "context_handoff"),

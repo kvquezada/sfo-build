@@ -17,6 +17,7 @@
     "pbtq": "bun adws/adw_plan_build_test_quality.ts",
     "quality": "bun adws/adw_quality.ts",
     "document": "bun adws/adw_document.ts",
+    "ship": "bun adws/adw_ship.ts",
     "sdlc": "bun adws/adw_simple_sdlc.ts",
     "sessions": "bun adws/adw_observe.ts sessions",
     "phases": "bun adws/adw_observe.ts phases",

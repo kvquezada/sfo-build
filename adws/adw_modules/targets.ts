@@ -52,6 +52,8 @@ export function resolveTarget(cfg: SfoConfig, name: string): ResolvedTarget {
     lint: row.lint,
     typecheck: row.typecheck,
     build: row.build,
+    base_branch: row.base_branch,
+    remote: row.remote,
   };
 }
 

@@ -426,6 +426,15 @@ export const TargetConfig = z.object({
   lint: z.array(z.string()).default([]),
   typecheck: z.array(z.string()).default([]),
   build: z.array(z.string()).default([]),
+  /**
+   * The trunk a ship run cuts its branch from and opens its PR against.
+   *
+   * Defaulted rather than required so every registry that predates the ship
+   * chain keeps parsing. The default is a guess, and a wrong one is loud: the
+   * fetch in ship.ts fails on a branch the remote does not have.
+   */
+  base_branch: z.string().default("master"),
+  remote: z.string().default("origin"),
 });
 export type TargetConfig = z.infer<typeof TargetConfig>;
 
@@ -609,4 +618,7 @@ export interface ResolvedTarget {
   lint: string[];
   typecheck: string[];
   build: string[];
+  /** The trunk a ship run branches from and targets. */
+  base_branch: string;
+  remote: string;
 }

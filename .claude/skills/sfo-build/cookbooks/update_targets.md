@@ -12,6 +12,8 @@ commands before recording them.
   - name: api
     path: ~/Workspace/personal/oms
     subdir: apps/api                       # optional
+    base_branch: main                      # optional, default master
+    remote: origin                         # optional, default origin
     test: [npx, nx, run-many, -t, test]
     lint: [npx, nx, lint, api]
     typecheck: []                          # optional
@@ -25,6 +27,13 @@ root so a monorepo can be read across packages; the scope is enforced afterwards
 against the diff. Quality commands run from `path/subdir`, which is fine for nx
 (it resolves its workspace root upward — verified) and is what lets a
 per-package runner work elsewhere.
+
+**`base_branch`** — the trunk `npm run ship` cuts its branch from and opens its
+PR against, and the left side of the `<remote>/<base_branch>..HEAD` range that
+decides what a ship run is carrying. Read by nothing else. The default is
+`master`, which is a guess; a wrong one fails loudly at the fetch rather than
+shipping to the wrong place. `npm run install-target` reads it off
+`<remote>/HEAD` and writes it down, so registering a target normally settles it.
 
 **Command lists are argv, never shell strings.** No quoting bugs, no shell
 injection. Call binaries by bare name (`npx`, `bun`, `pytest`) — these inherit

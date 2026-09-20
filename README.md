@@ -46,6 +46,7 @@ before anything downstream believes it.
 | `quality` | lint / typecheck / build / test. No agents |
 | `document` | diff → write-up |
 | `sdlc` | plan → build → test ⟲ fix → review ⟲ revise → commit ×3 → document |
+| `ship` | branch → push → pull request. No agents |
 
 They compose rather than nest: each row commits on its OWN acceptance criterion
 and nothing else's. `pbt` gates on the suite, `br` on the reviewer, `pbtq` on
@@ -55,6 +56,24 @@ belongs on record even though the tests would answer a question nobody asked.
 `sdlc` produces three commits from three authors — the spec, the code and the
 write-up each in their own commit, each message written by the agent that
 produced that work.
+
+`ship` is the last mile, and it runs on commits that already exist. The branch
+name is derived from them rather than asked of a model — `feat` → `feature/`,
+else `fix` → `fix/`, else `chore/`, slugged from the first commit of the winning
+type — and the PR title is that commit's subject, so a squash-merge lands a
+conforming subject on the trunk. The body comes from
+`adws/adw_data/templates/pull_request.md`, which is the operator's file to edit.
+Per target, `base_branch` names the trunk it branches from and aims at.
+
+```bash
+npm run ship -- --target api --dry-run   # derive and render, touch nothing
+npm run ship -- --target api
+npm run sdlc -- --target api "..." --ship
+```
+
+`--ship` appends it to `sdlc` and `pbtq`, inside their verified block. Opt-in:
+a push is outward-facing in a way a local commit is not, and it uses your own
+`gh` credentials rather than any the factory holds.
 
 ## Targets
 
