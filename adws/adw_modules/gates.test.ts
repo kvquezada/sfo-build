@@ -16,6 +16,7 @@ import path from "node:path";
 import * as gates from "./gates.ts";
 import {
   GateReport,
+  MapOutput,
   OptionsOutput,
   SfoConfig,
   type EnvelopeBase,
@@ -301,5 +302,44 @@ describe("OptionsOutput", () => {
     const parsed = OptionsOutput.safeParse({ ...base, options: ["a", "b", "c"].map(option) });
     expect(parsed.success).toBe(true);
     expect(parsed.success && parsed.data.options[0]!.name).toBe("a");
+  });
+});
+
+/**
+ * The difference between a map and a trace is what each is ALLOWED to conclude,
+ * and that lives in the schema as much as in the prompt. If `observations` ever
+ * gained a `.min(1)`, the cartographer would be in the correlator's position —
+ * obliged to produce a finding whether or not one exists — and the workflow
+ * would quietly become the thing it was split off to avoid.
+ */
+describe("MapOutput", () => {
+  const base = { status: "success", summary: "the front posts a stage, the api persists it" };
+
+  test("accepts a map that finds nothing worth noting — 'they agree' is an answer", () => {
+    const parsed = MapOutput.safeParse({
+      ...base,
+      hops: [{ target: "t", file: "caller.ts", note: "posts {stage}" }],
+      contract: "both sides speak the same OrderStage union",
+      observations: [],
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.observations).toEqual([]);
+  });
+
+  test("observations may be left out entirely", () => {
+    const parsed = MapOutput.safeParse({ ...base, hops: [] });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.observations).toEqual([]);
+  });
+
+  test("hops still carry their repo — a map is checkable the same way a trace is", async () => {
+    writeFileSync(path.join(otherRoot, "handler.ts"), "route()");
+    const parsed = MapOutput.parse({
+      ...base,
+      hops: [{ target: "other", file: "handler.ts", note: "receives it" }],
+    });
+    // The same gate the trace uses: the claim is verified in the repo it names.
+    const report = await run_(gates.hops_resolve, parsed as unknown as EnvelopeBase);
+    expect(report.passed).toBe(true);
   });
 });

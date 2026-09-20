@@ -9,6 +9,7 @@
     "prompt": "bun adws/adw_prompt.ts",
     "scout": "bun adws/adw_scout.ts",
     "trace": "bun adws/adw_trace.ts",
+    "map": "bun adws/adw_map.ts",
     "plan": "bun adws/adw_plan.ts",
     "build": "bun adws/adw_build.ts",
     "pb": "bun adws/adw_plan_build.ts",

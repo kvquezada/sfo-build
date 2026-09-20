@@ -38,6 +38,7 @@ before anything downstream believes it.
 | `prompt` | one agent, one prompt |
 | `scout` | read-only recon |
 | `trace` | scout ×N repos → correlate → advise. Read-only, crosses checkouts |
+| `map` | scout ×N repos → map. Same, for "how does this work" |
 | `plan` | a spec, then stop |
 | `build` | build → test → commit |
 | `bt` | build → test ⟲ fix → commit |
@@ -71,6 +72,17 @@ what IS and where the two sides disagree, and `fixes.md`, at most three options
 with their costs. The order of those options is the recommendation; there is no
 separate field to disagree with it, and a fourth option is refused by the parser
 rather than asked against in a prompt. Nothing is written to any repo.
+
+`map` is the same chain asking the opposite question, and the split is
+deliberate rather than a flag. The correlator's prompt tells it six times to
+name a seam, and an agent told to find a problem finds one: asked the neutral
+question "how does an order stage change reach the UI", it reported that the
+front had no error handling for a rejected transition — inferred from the scout
+reports not mentioning any, by scouts who had never been asked. The next agent
+read the code and refuted it. So the cartographer is told the opposite, in the
+words that matter: "they agree" is a complete answer, and silence in a report is
+not evidence of absence. Use `trace` when something is wrong and `map` when you
+want to learn the flow.
 
 `ship` is the last mile, and it runs on commits that already exist. The branch
 name is derived from them rather than asked of a model — `feat` → `feature/`,

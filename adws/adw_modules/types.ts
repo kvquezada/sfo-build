@@ -161,6 +161,30 @@ export const TraceOutput = EnvelopeBase.extend({
 });
 export type TraceOutput = z.infer<typeof TraceOutput>;
 
+/**
+ * How a request actually flows across repos, and what the two sides agree on.
+ *
+ * `TraceOutput`'s sibling, and the difference is the QUESTION, not the shape.
+ * A trace asks why something is broken and must name a seam; a map asks how
+ * something works and is allowed to answer "they agree". That is why
+ * `observations` may be empty and nothing here is required to be a fault:
+ * an agent told to find a problem will find one, and the fabricated half of
+ * that answer looks exactly like the real half.
+ */
+export const MapOutput = EnvelopeBase.extend({
+  hops: z.array(TraceHop).default([]), // ordered along the request path
+  /** What the repos agree on — the shape that crosses the boundary. */
+  contract: z.string().default(""),
+  /**
+   * Worth knowing, NOT a list of defects: a rule implemented twice, a field
+   * renamed in transit, an assumption only one side states. Empty is a
+   * complete answer and the prompt says so — the same licence scout has to
+   * report that a thing does not exist.
+   */
+  observations: z.array(z.string()).default([]),
+});
+export type MapOutput = z.infer<typeof MapOutput>;
+
 /** One candidate fix: what would change, what it buys, what it costs. */
 export const FixOption = z.object({
   name: z.string().min(1),
