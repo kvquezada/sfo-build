@@ -4,3 +4,4 @@ node_modules/
 .next/
 apps/visualizer/.next/
 apps/visualizer/next-env.d.ts
+*.tsbuildinfo
