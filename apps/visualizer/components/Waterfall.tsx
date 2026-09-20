@@ -13,6 +13,7 @@ import type {
 import { alpha, callOk, geometry, lanes, span, ts } from "@/lib/trace.ts";
 import { compact, num } from "@/lib/format.ts";
 import { PhaseDetail } from "@/components/PhaseDetail.tsx";
+import { useSelection } from "@/components/Crumbs.tsx";
 
 const GLYPH: Record<string, string> = {
   success: "✓",
@@ -48,7 +49,13 @@ export function Waterfall({
   gates: GateRow[];
   envelopes: EnvelopeRow[];
 }) {
-  const [selected, setSelected] = useState<string | null>(null);
+  // Selection lives in the crumb provider, because the header's last crumb
+  // names the open phase and the header is not below this component.
+  const { phaseId: selected, select } = useSelection();
+  const setSelected = (id: string | null) => {
+    const next = id === null ? null : (phases.find((p) => p.phase_id === id) ?? null);
+    select(next ? { phase_id: next.phase_id, name: next.name } : null);
+  };
   const now = useNow(session.status === "running");
 
   const rows = useMemo(

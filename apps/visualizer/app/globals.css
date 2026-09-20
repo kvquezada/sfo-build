@@ -1,11 +1,18 @@
-/* One dark theme. The trace is read in a terminal-adjacent context and the
-   colours match the console reporter's: agent=magenta, code=yellow,
-   engineer=cyan, so a phase looks the same in both places. */
+/* Two themes, one set of tokens. The trace is read in a terminal-adjacent
+   context and the colours match the console reporter's: agent=magenta,
+   code=yellow, engineer=cyan, so a phase looks the same in both places.
+
+   Dark is the default and the one the console was matched against. Light is a
+   full re-statement of every token rather than a filter over the dark one —
+   the semantic colours in particular have to DARKEN on paper to stay legible,
+   which no amount of inversion does for you. Nothing below this block may
+   hardcode a colour: a literal here is a hole in the other theme. */
 
 :root {
   --bg: #0b0d12;
   --bg-raised: #12151d;
   --bg-hover: #171b26;
+  --bg-sunken: #0f121a;
   --border: #232937;
   --border-bright: #313a4d;
   --text: #e6e9f0;
@@ -21,7 +28,75 @@
   --agent: #c084fc;
   --code: #fbbf24;
 
+  /* Tints are the semantic colour at low alpha, so they follow it per theme. */
+  --success-bg: #34d3991a;
+  --success-line: #34d39933;
+  --fail-bg: #fb71851a;
+  --fail-line: #fb718533;
+  --fail-text: #fecdd3;
+  --fail-soft: #fda4af;
+  --running-bg: #fbbf241a;
+  --running-line: #fbbf2433;
+  --queued-bg: #5b647822;
+
+  --accent-bg: #1e2a44;
+  --accent-text: #bfdbfe;
+  --accent-line: #2f4468;
+
+  --tool: #7dd3fc;
+  --handoff: #a5b4fc;
+
+  --masthead-bg: rgba(11, 13, 18, 0.88);
+  --track-well: #00000066;
+  --grid-line: #ffffff0f;
+  --block-shadow: #0008;
+
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+/* Paper, not an inversion. Set by the inline script in layout.tsx before
+   first paint, from the stored choice or the OS preference. */
+:root[data-theme="light"] {
+  --bg: #f6f7f9;
+  --bg-raised: #ffffff;
+  --bg-hover: #eef0f4;
+  --bg-sunken: #eceff4;
+  --border: #dde1e8;
+  --border-bright: #b9c1cf;
+  --text: #111620;
+  --text-dim: #48546a;
+  --text-faint: #6a7484;
+
+  --success: #047857;
+  --fail: #be123c;
+  --running: #a16207;
+  --queued: #94a3b8;
+
+  --engineer: #0e7490;
+  --agent: #7c3aed;
+  --code: #a16207;
+
+  --success-bg: #04785714;
+  --success-line: #04785738;
+  --fail-bg: #be123c12;
+  --fail-line: #be123c38;
+  --fail-text: #9f1239;
+  --fail-soft: #be123c;
+  --running-bg: #a1620714;
+  --running-line: #a1620738;
+  --queued-bg: #94a3b81f;
+
+  --accent-bg: #e6edfb;
+  --accent-text: #1d4ed8;
+  --accent-line: #c2d4f5;
+
+  --tool: #0369a1;
+  --handoff: #4f46e5;
+
+  --masthead-bg: rgba(246, 247, 249, 0.88);
+  --track-well: #0000000d;
+  --grid-line: #0000000f;
+  --block-shadow: #00000026;
 }
 
 * { box-sizing: border-box; }
@@ -46,7 +121,7 @@ a { color: inherit; text-decoration: none; }
 /* ── header ───────────────────────────────────────────────────────────────── */
 .masthead {
   position: sticky; top: 0; z-index: 10;
-  background: rgba(11, 13, 18, 0.88);
+  background: var(--masthead-bg);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
   margin-bottom: 24px;
@@ -60,7 +135,21 @@ a { color: inherit; text-decoration: none; }
 .masthead .spacer { flex: 1; }
 .masthead-wide .masthead-inner { max-width: 1480px; }
 
-.dbline { font-family: var(--mono); font-size: 11px; color: var(--text-faint); }
+/* Both icons ship; the theme picks one. See components/ThemeToggle.tsx for
+   why this is CSS rather than React state. */
+.theme-toggle {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; padding: 0;
+  background: none; border: 1px solid var(--border); border-radius: 7px;
+  color: var(--text-dim); font-size: 13px; line-height: 1; cursor: pointer;
+  transition: color .12s, border-color .12s, background .12s;
+}
+.theme-toggle:hover { color: var(--text); border-color: var(--border-bright); background: var(--bg-hover); }
+.theme-icon { display: none; }
+/* No data-theme yet (script blocked) means the dark default is showing. */
+:root .theme-sun { display: inline; }
+:root[data-theme="light"] .theme-sun { display: none; }
+:root[data-theme="light"] .theme-moon { display: inline; }
 
 /* ── target filter ────────────────────────────────────────────────────────── */
 .filters { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
@@ -73,7 +162,7 @@ a { color: inherit; text-decoration: none; }
 }
 .chip:hover { background: var(--bg-hover); color: var(--text); }
 .chip[data-on="true"] {
-  background: #1e2a44; color: #bfdbfe; border-color: #2f4468;
+  background: var(--accent-bg); color: var(--accent-text); border-color: var(--accent-line);
 }
 .chip .count { color: var(--text-faint); margin-left: 6px; }
 
@@ -103,15 +192,15 @@ a { color: inherit; text-decoration: none; }
   font: 600 10px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase;
   padding: 4px 8px; border-radius: 5px; border: 1px solid transparent;
 }
-.status[data-s="success"] { color: var(--success); background: #34d3991a; border-color: #34d39933; }
-.status[data-s="fail"]    { color: var(--fail);    background: #fb71851a; border-color: #fb718533; }
-.status[data-s="running"] { color: var(--running); background: #fbbf241a; border-color: #fbbf2433; }
-.status[data-s="queued"]  { color: var(--queued);  background: #5b647822; }
+.status[data-s="success"] { color: var(--success); background: var(--success-bg); border-color: var(--success-line); }
+.status[data-s="fail"]    { color: var(--fail);    background: var(--fail-bg); border-color: var(--fail-line); }
+.status[data-s="running"] { color: var(--running); background: var(--running-bg); border-color: var(--running-line); }
+.status[data-s="queued"]  { color: var(--queued);  background: var(--queued-bg); }
 
 .badge {
   font: 600 10px/1 var(--mono); letter-spacing: .04em;
   padding: 4px 8px; border-radius: 5px;
-  background: #1e2a44; color: #bfdbfe; border: 1px solid #2f4468;
+  background: var(--accent-bg); color: var(--accent-text); border: 1px solid var(--accent-line);
 }
 
 /* ── phase dots ───────────────────────────────────────────────────────────── */
@@ -123,8 +212,23 @@ a { color: inherit; text-decoration: none; }
 @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
 
 /* ── detail ───────────────────────────────────────────────────────────────── */
-.crumb { font: 400 12px/1 var(--mono); color: var(--text-faint); margin-bottom: 14px; }
-.crumb a:hover { color: var(--text); }
+/* Trail in the masthead. It wraps before it truncates — a phase name is the
+   one crumb worth reading in full, and it is always the last. */
+.crumbs {
+  display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+  font: 400 12px/1 var(--mono); color: var(--text-faint); min-width: 0;
+}
+.crumb-link:hover { color: var(--text); }
+.crumb-sep { color: var(--text-faint); opacity: .55; }
+/* The masthead's own 16px gap sits to the left of this slash, so it takes its
+   breathing room on the right only — otherwise the wordmark reads as further
+   from the slash than "sessions" is. */
+.crumb-root-sep { color: var(--text-faint); opacity: .55; margin-right: 2px; }
+.crumb-here { color: var(--text-dim); }
+.crumb-up {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  font: inherit; color: inherit;
+}
 
 .panel {
   background: var(--bg-raised); border: 1px solid var(--border);
@@ -142,8 +246,8 @@ a { color: inherit; text-decoration: none; }
 /* ── phase error ──────────────────────────────────────────────────────────── */
 .phase-error {
   margin-top: 8px; padding: 8px 10px; border-radius: 6px;
-  background: #fb71851a; border: 1px solid #fb718533;
-  color: #fecdd3; font: 400 11.5px/1.5 var(--mono); white-space: pre-wrap;
+  background: var(--fail-bg); border: 1px solid var(--fail-line);
+  color: var(--fail-text); font: 400 11.5px/1.5 var(--mono); white-space: pre-wrap;
 }
 
 /* ── gates ────────────────────────────────────────────────────────────────── */
@@ -152,7 +256,7 @@ a { color: inherit; text-decoration: none; }
 .gate-head { display: flex; gap: 8px; align-items: center; font: 600 12px/1 var(--mono); }
 .check { display: flex; gap: 8px; padding: 3px 0 3px 22px; font: 400 11.5px/1.5 var(--mono);
          color: var(--text-dim); }
-.check[data-ok="false"] { color: #fda4af; }
+.check[data-ok="false"] { color: var(--fail-soft); }
 .check .item { color: var(--text); flex-shrink: 0; }
 
 /* ── events ───────────────────────────────────────────────────────────────── */
@@ -162,7 +266,7 @@ a { color: inherit; text-decoration: none; }
 .ev-type { flex-shrink: 0; width: 96px; color: var(--text-faint); }
 .ev[data-t="error"] .ev-type, .ev[data-t="gate_fail"] .ev-type { color: var(--fail); }
 .ev[data-t="gate_pass"] .ev-type { color: var(--success); }
-.ev[data-t="tool_call"] .ev-type { color: #7dd3fc; }
+.ev[data-t="tool_call"] .ev-type { color: var(--tool); }
 .ev[data-t="agent_start"] .ev-type, .ev[data-t="agent_end"] .ev-type { color: var(--agent); }
 .ev-body { color: var(--text-dim); word-break: break-word; }
 
@@ -176,7 +280,7 @@ a { color: inherit; text-decoration: none; }
 
 .empty { color: var(--text-faint); font-size: 13px; padding: 40px 0; text-align: center; }
 .err {
-  background: #fb71851a; border: 1px solid #fb718533; color: #fecdd3;
+  background: var(--fail-bg); border: 1px solid var(--fail-line); color: var(--fail-text);
   border-radius: 10px; padding: 16px; font: 400 13px/1.6 var(--mono); white-space: pre-wrap;
 }
 .live { display: inline-flex; align-items: center; gap: 6px; color: var(--running); font-size: 11px;
@@ -210,7 +314,7 @@ a { color: inherit; text-decoration: none; }
 }
 .wf-lane { border-top: 1px solid var(--border); }
 
-.wf-axis { background: #0f121a; }
+.wf-axis { background: var(--bg-sunken); }
 .wf-axis .wf-track { height: 26px; }
 
 .wf-label {
@@ -220,7 +324,7 @@ a { color: inherit; text-decoration: none; }
   display: flex; flex-direction: column; justify-content: center; gap: 3px;
   overflow: hidden; white-space: nowrap;
 }
-.wf-axis .wf-label { background: #0f121a; }
+.wf-axis .wf-label { background: var(--bg-sunken); }
 .wf-name {
   display: inline-flex; align-items: center; gap: 7px;
   font: 600 13px/1.3 var(--mono); overflow: hidden; text-overflow: ellipsis;
@@ -241,9 +345,21 @@ a { color: inherit; text-decoration: none; }
 .wf-ctx-val { font-weight: 600; color: var(--text-dim); }
 .wf-ctx-bar {
   height: 3px; border-radius: 999px;
-  background: #00000066; border: 1px solid var(--border); overflow: hidden;
+  background: var(--track-well); border: 1px solid var(--border); overflow: hidden;
 }
 .wf-ctx-fill { display: block; height: 100%; border-radius: 999px; }
+
+/* Lane colours arrive as inline styles from sfo.config.yaml, chosen to match
+   the console reporter on a dark terminal. CSS cannot rewrite a value it never
+   sees, and the config should not be re-tuned for a viewer the console does
+   not share — so on paper the bright end (yellow `code`, cyan `builder`) is
+   darkened where it carries meaning: the name, its swatch, the gauge fill.
+   Block tints are left alone; they are backgrounds, and pale is correct. */
+:root[data-theme="light"] .wf-name,
+:root[data-theme="light"] .wf-ctx-fill,
+:root[data-theme="light"] .swatch {
+  filter: brightness(0.66) saturate(1.5);
+}
 
 .wf-track { position: relative; height: 82px; overflow: hidden; }
 
@@ -254,7 +370,7 @@ a { color: inherit; text-decoration: none; }
   color: var(--engineer); border-right: 1px solid var(--border);
 }
 .wf-divider { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--border); }
-.wf-grid { position: absolute; top: 0; bottom: 0; border-left: 1px dashed #ffffff0f; }
+.wf-grid { position: absolute; top: 0; bottom: 0; border-left: 1px dashed var(--grid-line); }
 .wf-tick {
   position: absolute; bottom: 6px; transform: translateX(-50%);
   font: 400 10px/1 var(--mono); color: var(--text-faint); white-space: nowrap;
@@ -269,7 +385,7 @@ a { color: inherit; text-decoration: none; }
   overflow: hidden; white-space: nowrap; font: inherit;
   transition: box-shadow .12s, transform .12s;
 }
-.wf-block:hover { box-shadow: 0 0 0 1px var(--border-bright), 0 4px 16px #0008; }
+.wf-block:hover { box-shadow: 0 0 0 1px var(--border-bright), 0 4px 16px var(--block-shadow); }
 .wf-block[data-on="true"] { outline: 2px solid var(--text); outline-offset: 1px; }
 .wf-block[data-s="running"] { animation: pulse 1.8s ease-in-out infinite; }
 .wf-queued {
@@ -413,10 +529,10 @@ a { color: inherit; text-decoration: none; }
 .pd-ev-row .ev-body[data-err="true"] { color: var(--fail); }
 .pd-ev-row[data-t="error"] .ev-type, .pd-ev-row[data-t="gate_fail"] .ev-type { color: var(--fail); }
 .pd-ev-row[data-t="gate_pass"] .ev-type { color: var(--success); }
-.pd-ev-row[data-t="tool_call"] .ev-type { color: #7dd3fc; }
+.pd-ev-row[data-t="tool_call"] .ev-type { color: var(--tool); }
 .pd-ev-row[data-t="agent_start"] .ev-type,
 .pd-ev-row[data-t="agent_end"] .ev-type { color: var(--agent); }
-.pd-ev-row[data-t="handoff"] .ev-type { color: #a5b4fc; }
+.pd-ev-row[data-t="handoff"] .ev-type { color: var(--handoff); }
 .pd-ev-side { flex-shrink: 0; color: var(--text-faint); font-size: 10.5px; }
 .pd-payload { padding: 4px 4px 12px 24px; }
 .pd-payload h4 {

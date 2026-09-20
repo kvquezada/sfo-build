@@ -6,6 +6,8 @@ import { modelWindows } from "@/lib/models.ts";
 import { ago, clock, credits, duration, money, num } from "@/lib/format.ts";
 import { eventLabel } from "@/lib/trace.ts";
 import { AutoRefresh } from "@/components/AutoRefresh.tsx";
+import { ThemeToggle } from "@/components/ThemeToggle.tsx";
+import { Breadcrumb, SelectionProvider } from "@/components/Crumbs.tsx";
 import { Status, TargetBadge } from "@/components/chips.tsx";
 import { Waterfall } from "@/components/Waterfall.tsx";
 
@@ -40,38 +42,29 @@ export default async function SessionPage({
   const loose = events.filter((e) => !e.phase_id);
 
   return (
-    <>
+    <SelectionProvider>
       <header className="masthead masthead-wide">
         <div className="masthead-inner">
-          <span className="brand">
-            sfo-build <span>/ trace</span>
-          </span>
+          <span className="brand">SFO - Build</span>
+          <Breadcrumb adwId={session.adw_id} />
           <AutoRefresh active={live} idleMs={10_000} />
           <span className="spacer" />
-          <span className="dbline">{db.DB_PATH}</span>
+          <ThemeToggle />
         </div>
       </header>
 
       <main className="shell shell-wide">
-        <div className="crumb">
-          <Link href="/">← all runs</Link>
-          {session.target ? (
-            <>
-              {"  ·  "}
-              <Link href={`/?target=${encodeURIComponent(session.target)}`}>{session.target}</Link>
-            </>
-          ) : null}
-          {"  ·  "}
-          {session.adw_id}
-        </div>
-
         <div className="panel">
           <div className="card-top" style={{ marginBottom: 12 }}>
             <span className="adwid" style={{ fontSize: 15 }}>
               {session.adw_id}
             </span>
             <Status status={session.status} />
-            <TargetBadge target={session.target} />
+            {session.target ? (
+              <Link href={`/?target=${encodeURIComponent(session.target)}`}>
+                <TargetBadge target={session.target} />
+              </Link>
+            ) : null}
             <span className="mono" style={{ fontSize: 11, color: "var(--text-faint)" }}>
               {session.adw_name}
             </span>
@@ -148,6 +141,6 @@ export default async function SessionPage({
           </div>
         ) : null}
       </main>
-    </>
+    </SelectionProvider>
   );
 }

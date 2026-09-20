@@ -3,6 +3,8 @@ import Link from "next/link";
 import * as db from "@/lib/db.ts";
 import { ago, clip, num } from "@/lib/format.ts";
 import { AutoRefresh } from "@/components/AutoRefresh.tsx";
+import { ThemeToggle } from "@/components/ThemeToggle.tsx";
+import { Breadcrumb } from "@/components/Crumbs.tsx";
 import { PhaseDots, Spend, Status, TargetBadge } from "@/components/chips.tsx";
 import { TargetFilter } from "@/components/TargetFilter.tsx";
 
@@ -18,11 +20,11 @@ export default async function SessionsPage({
 
   let rows: ReturnType<typeof db.sessions>;
   let targets: { target: string; runs: number }[];
-  let info: ReturnType<typeof db.health>;
   try {
+    // `sessions` is what surfaces a missing database now that the header no
+    // longer prints the path — it throws MissingDatabase with the path in it.
     rows = db.sessions({ target, limit: 200 });
     targets = db.targets();
-    info = db.health();
   } catch (error) {
     return (
       <>
@@ -38,7 +40,7 @@ export default async function SessionsPage({
 
   return (
     <>
-      <Masthead db={info.db} live={live} />
+      <Masthead live={live} />
       <main className="shell">
         <TargetFilter targets={targets} active={target ?? null} />
         <div style={{ height: 18 }} />
@@ -83,16 +85,17 @@ export default async function SessionsPage({
   );
 }
 
-function Masthead({ db: dbPath, live }: { db?: string; live?: boolean }) {
+function Masthead({ live }: { live?: boolean }) {
   return (
     <header className="masthead">
       <div className="masthead-inner">
-        <span className="brand">
-          sfo-build <span>/ trace</span>
-        </span>
+        <span className="brand">SFO - Build</span>
+        {/* No provider here: with no run in the trail there is no phase to
+            name, and the context default is already that. */}
+        <Breadcrumb />
         <AutoRefresh active={Boolean(live)} />
         <span className="spacer" />
-        {dbPath ? <span className="dbline">{dbPath}</span> : null}
+        <ThemeToggle />
       </div>
     </header>
   );
