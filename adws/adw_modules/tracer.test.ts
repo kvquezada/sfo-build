@@ -150,3 +150,72 @@ describe("feedback columns", () => {
     expect(row.note).toBe("plan was tight");
   });
 });
+
+/**
+ * The cross-repo columns. `phases.target` is the only record of which checkout
+ * a phase stood in, and `agent_sessions.target` splits out what the composite
+ * key holds — a run that wrote neither would look single-repo forever after.
+ */
+describe("cross-repo columns", () => {
+  test("a fresh database has them", () => {
+    const tracer = new Tracer(dbPath, jsonl);
+    tracer.close();
+    expect(columns("phases")).toContain("target");
+    expect(columns("agent_sessions")).toContain("target");
+  });
+
+  test("a database older than them grows them on open", () => {
+    const old = new DatabaseSync(dbPath);
+    old.exec(`CREATE TABLE phases (
+      phase_id TEXT PRIMARY KEY, adw_id TEXT, seq INTEGER,
+      name TEXT, kind TEXT, owner TEXT, description TEXT,
+      status TEXT DEFAULT 'fail', attempt INTEGER DEFAULT 0, retries INTEGER DEFAULT 0,
+      error TEXT, started_at TEXT, ended_at TEXT
+    )`);
+    old.prepare("INSERT INTO phases (phase_id, adw_id, name) VALUES (?,?,?)").run(
+      "p_old", "adw_old", "build",
+    );
+    old.close();
+
+    const tracer = new Tracer(dbPath, jsonl);
+    tracer.close();
+    expect(columns("phases")).toContain("target");
+
+    // The pre-existing row survives with a null target, which is the honest
+    // value: that run really did not record one.
+    const db = new DatabaseSync(dbPath, { readOnly: true });
+    const row = db.prepare("SELECT name, target FROM phases WHERE phase_id = ?").get("p_old");
+    db.close();
+    expect(row).toEqual({ name: "build", target: null });
+  });
+
+  test("a phase records the repo it stood in", () => {
+    const tracer = new Tracer(dbPath, jsonl);
+    tracer.sessionStart({
+      adwId: "adw_x", engineer: "e", adwName: "adw_trace",
+      target: "mobile+api", repoPath: "/tmp/a /tmp/b",
+    });
+    for (const [id, name, target] of [
+      ["adw_x_01_scout_mobile", "scout_mobile", "mobile"],
+      ["adw_x_02_scout_api", "scout_api", "api"],
+    ] as const) {
+      tracer.phaseUpsert({
+        phase_id: id, adw_id: "adw_x", seq: 1,
+        params: {
+          name, kind: "agent", owner: "scout", retries: 0, target,
+          description: `scout ${target}`,
+        },
+        status: "success", attempt: 0,
+      });
+    }
+    tracer.close();
+
+    const db = new DatabaseSync(dbPath, { readOnly: true });
+    const rows = db.prepare("SELECT name, target FROM phases ORDER BY name").all();
+    db.close();
+    expect(rows).toEqual([
+      { name: "scout_api", target: "api" },
+      { name: "scout_mobile", target: "mobile" },
+    ]);
+  });
+});

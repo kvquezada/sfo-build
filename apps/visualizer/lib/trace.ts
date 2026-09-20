@@ -84,6 +84,12 @@ export interface Lane {
  * One lane per actor: the engineer, the workspace, then an agent per owner in
  * first-use order. A lane exists because something ran in it — an empty lane
  * is a row of nothing, so `code` and the agents only appear when used.
+ *
+ * On a run that crossed repos, the actor is the agent AND the repo it stood in:
+ * two scout phases over two checkouts are two lanes. Not for the geometry —
+ * they run in sequence and would sit side by side in one row perfectly well —
+ * but for the context bar. Each is its own Copilot session with its own window
+ * occupancy, and one lane cannot honestly show two numbers.
  */
 export function lanes(
   session: SessionRow,
@@ -116,23 +122,51 @@ export function lanes(
     });
   }
 
-  const owners: string[] = [];
+  // Split by repo only when there is more than one — a single-target run keeps
+  // the lane it has always had, named for the agent alone.
+  const repos = new Set(phases.map((p) => p.target ?? "").filter(Boolean));
+  const split = repos.size > 1;
+  const key = (p: PhaseRow) => (split ? `${p.owner}@${p.target ?? ""}` : p.owner);
+
+  const actors: { id: string; owner: string; target: string }[] = [];
   for (const p of phases) {
-    if (p.kind === "agent" && p.owner && !owners.includes(p.owner)) owners.push(p.owner);
+    if (p.kind !== "agent" || !p.owner) continue;
+    const id = key(p);
+    if (actors.some((a) => a.id === id)) continue;
+    actors.push({ id, owner: p.owner, target: split ? (p.target ?? "") : "" });
   }
-  for (const [i, owner] of owners.entries()) {
-    const info = agents.find((a) => a.agent === owner);
+  for (const [i, actor] of actors.entries()) {
+    const info = agentFor(agents, actor.owner, actor.target);
     out.push({
-      id: `agent:${owner}`,
-      label: owner,
+      id: `agent:${actor.id}`,
+      label: actor.owner,
       kind: "agent",
       color: info?.color || AGENT_FALLBACK[i % AGENT_FALLBACK.length] || "#c084fc",
-      meta: info?.model ?? "agent",
+      meta: actor.target ? `${actor.target} · ${info?.model ?? "agent"}` : (info?.model ?? "agent"),
       context: laneContext(info, windows),
-      phases: phases.filter((p) => p.kind === "agent" && p.owner === owner),
+      phases: phases.filter((p) => p.kind === "agent" && p.owner === actor.owner && key(p) === actor.id),
     });
   }
   return out;
+}
+
+/**
+ * The agent_sessions row for one lane.
+ *
+ * Rows are keyed `scout@api` since the cross-repo change; anything written
+ * before it is keyed on the bare agent name. Both are read, newest convention
+ * first, so an old run still finds its model and its context figure.
+ */
+export function agentFor(
+  agents: AgentSessionRow[],
+  owner: string,
+  target: string,
+): AgentSessionRow | undefined {
+  if (target) {
+    const exact = agents.find((a) => a.agent === `${owner}@${target}` || (a.agent === owner && a.target === target));
+    if (exact) return exact;
+  }
+  return agents.find((a) => a.agent === owner || a.agent.startsWith(`${owner}@`));
 }
 
 /**

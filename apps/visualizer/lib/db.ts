@@ -125,6 +125,8 @@ export interface PhaseRow {
   kind: string;
   owner: string;
   description: string;
+  /** The registry row this phase stood in. "" or null on pre-cross-repo runs. */
+  target: string | null;
   status: string;
   attempt: number;
   retries: number;
@@ -169,7 +171,9 @@ export interface GateRow {
 }
 
 export interface AgentSessionRow {
+  /** `<agent>@<target>`: one session per repo, so two scouts do not share a row. */
   agent: string;
+  target: string | null;
   coding_agent: string;
   model: string;
   color: string;
@@ -207,8 +211,11 @@ export function sessions(opts: { limit?: number; target?: string; archived?: boo
   const where: string[] = [];
   const params: unknown[] = [];
   if (opts.target) {
-    where.push("target = ?");
-    params.push(opts.target);
+    // A cross-repo run stores every target it drove, joined: "front+api". The
+    // filter asks "did this run touch X", so equality would hide exactly the
+    // runs that touched the most.
+    where.push("('+' || target || '+') LIKE ?");
+    params.push(`%+${opts.target}+%`);
   }
   if (opts.archived !== undefined) {
     where.push("COALESCE(archived, 0) = ?");
@@ -240,11 +247,27 @@ export function sessions(opts: { limit?: number; target?: string; archived?: boo
   }));
 }
 
+/**
+ * Distinct targets with run counts — what the filter is built from.
+ *
+ * A cross-repo run's `target` is the joined list ("front+api"), so the column
+ * is split before counting: that run is one run of `front` AND one run of
+ * `api`, not one run of a target called "front+api" that nothing else shares.
+ */
 export function targets(): { target: string; runs: number }[] {
-  return all<{ target: string; runs: number }>(
+  const rows = all<{ target: string; runs: number }>(
     `SELECT COALESCE(target, '') AS target, COUNT(*) AS runs FROM sessions
       GROUP BY target ORDER BY runs DESC`,
-  ).filter((t) => t.target);
+  );
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    for (const name of row.target.split("+").filter(Boolean)) {
+      counts.set(name, (counts.get(name) ?? 0) + row.runs);
+    }
+  }
+  return [...counts.entries()]
+    .map(([target, runs]) => ({ target, runs }))
+    .sort((a, b) => b.runs - a.runs || a.target.localeCompare(b.target));
 }
 
 export function session(adwId: string): SessionRow | undefined {
@@ -355,5 +378,8 @@ export function setFeedback(
 
 /** `..` and separators can never reach a path built from a URL segment. */
 export function isSafeSegment(value: string): boolean {
-  return /^[A-Za-z0-9._-]+$/.test(value) && value !== "." && value !== "..";
+  // `@` is here for the agent directories, which are keyed `<agent>@<target>`.
+  // It carries no meaning to a path — no separator, no traversal — so the guard
+  // this function exists for is unaffected.
+  return /^[A-Za-z0-9._@-]+$/.test(value) && value !== "." && value !== "..";
 }
