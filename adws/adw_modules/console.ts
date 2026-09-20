@@ -8,6 +8,7 @@
  */
 
 import type { EnvelopeBase, GateReport, Phase, UsageBreakdown } from "./types.ts";
+import { aiCredits, money } from "./types.ts";
 import { clip } from "./utils.ts";
 
 const MAX_LINE = 160; // dynamic text (summaries, violations, errors) is clipped
@@ -89,8 +90,8 @@ export class Console {
       ` ${paint("status", "dim")}   ${status}`,
       ` ${paint("phases", "dim")}   ${passed}/${this.results.length} passed`,
       ` ${paint("prompt", "dim")}   ${usage.prompt_tokens.toLocaleString()} tokens (last turn occupancy)`,
+      ` ${paint("cost", "dim")}     ${paint(money(usage.nano_aiu), "bold")} est. ${paint(`(${aiCredits(usage.nano_aiu).toFixed(2)} AI credits @ $0.01)`, "dim")}`,
       ` ${paint("premium", "dim")}  ${usage.premium_requests.toLocaleString()} requests`,
-      ` ${paint("nanoAIU", "dim")}  ${usage.nano_aiu.toLocaleString()}`,
       ` ${paint("adw_id", "dim")}   ${this.adwId}`,
       ` ${paint("db", "dim")}       ${dbPath}`,
       ` ${paint("next", "dim")}     ${paint(`npm run phases -- ${this.adwId}`, "bold")}`,
@@ -99,7 +100,7 @@ export class Console {
     const title = paint("ADW complete", "bold");
     const plain =
       `session ${this.adwId} ${ok ? "success" : "fail"} · ${passed}/${this.results.length} phases · ` +
-      `${usage.premium_requests} premium requests · ${usage.nano_aiu} nanoAIU`;
+      `${money(usage.nano_aiu)} est. · ${usage.premium_requests} premium requests · ${usage.nano_aiu} nanoAIU`;
     this.emit(`${border}\n ${title}\n${rows.join("\n")}\n${border}`, plain, ok ? "info" : "error");
   }
 
@@ -145,8 +146,9 @@ export class Console {
 
   agentFinished(name: string, usage: UsageBreakdown): void {
     const text =
-      `${name} used ${usage.premium_requests} premium request(s) · ` +
-      `${usage.nano_aiu.toLocaleString()} nanoAIU · ${usage.prompt_tokens.toLocaleString()} prompt tokens`;
+      `${name} used ${money(usage.nano_aiu)} est. · ` +
+      `${usage.premium_requests} premium request(s) · ` +
+      `${usage.prompt_tokens.toLocaleString()} prompt tokens`;
     this.emit(`  ${paint(`└ ${text}`, "dim")}`, text);
   }
 

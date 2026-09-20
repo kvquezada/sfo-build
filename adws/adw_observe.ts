@@ -15,6 +15,7 @@ import { DatabaseSync } from "node:sqlite";
 import { loadConfig } from "./adw_modules/config.ts";
 import { configPath } from "./adw_modules/session.ts";
 import { clip, expandHome } from "./adw_modules/utils.ts";
+import { aiCredits, money } from "./adw_modules/types.ts";
 
 const DIM = "\x1b[2m";
 const BOLD = "\x1b[1m";
@@ -57,13 +58,13 @@ function sessions(db: DatabaseSync, limit: number): void {
   }
   process.stdout.write(
     `${BOLD}${"adw_id".padEnd(10)}${"target".padEnd(8)}${"status".padEnd(10)}` +
-      `${"prem".padEnd(6)}${"when".padEnd(11)}what${RESET}\n`,
+      `${"cost".padEnd(9)}${"when".padEnd(11)}what${RESET}\n`,
   );
   for (const row of rows) {
     const status = String(row["status"] ?? "");
     process.stdout.write(
       `${String(row["adw_id"]).padEnd(10)}${String(row["target"] ?? "").padEnd(8)}` +
-        `${mark(status)} ${status.padEnd(8)}${String(row["premium_requests"] ?? 0).padEnd(6)}` +
+        `${mark(status)} ${status.padEnd(8)}${money(Number(row["nano_aiu"] ?? 0)).padEnd(9)}` +
         `${ago(row["started_at"] as string).padEnd(11)}` +
         `${DIM}${String(row["adw_name"] ?? "")}${RESET} ` +
         `${clip(String(row["request"] ?? ""), 60)}\n`,
@@ -116,8 +117,9 @@ function phases(db: DatabaseSync, adwId: string): void {
     }
   }
   process.stdout.write(
-    `\n${DIM}premium requests ${session["premium_requests"] ?? 0} · ` +
-      `nanoAIU ${session["nano_aiu"] ?? 0}${RESET}\n`,
+    `\n${BOLD}${money(Number(session["nano_aiu"] ?? 0))} est.${RESET}` +
+      `${DIM} · ${aiCredits(Number(session["nano_aiu"] ?? 0)).toFixed(2)} AI credits @ $0.01 · ` +
+      `${session["premium_requests"] ?? 0} premium requests${RESET}\n`,
   );
 }
 

@@ -484,9 +484,11 @@ export interface AgentRequest {
 /**
  * Tokens and spend for one call.
  *
- * Copilot reports NO dollar cost anywhere (known impossibility 3) — only
- * premium requests and nano-AIU. The columns are split rather than faked into
- * one `total_cost REAL` that would be a guess wearing a decimal point.
+ * Copilot exposes no `total_cost` FIELD, but `nano_aiu` is nonetheless money:
+ * GitHub documents `totalNanoAiu` as the session's AI-credit cost and prices a
+ * credit at $0.01. So dollars are stored as the unit the stream actually
+ * reports and derived on read by `usd()` — never written as a second column
+ * that could drift from the number it was computed from.
  */
 export interface UsageBreakdown {
   prompt_tokens: number;
@@ -504,6 +506,33 @@ export function emptyUsage(): UsageBreakdown {
     premium_requests: 0,
     nano_aiu: 0,
   };
+}
+
+/**
+ * Dollars from nano-AI units.
+ *
+ * 1e9 nanoAIU is one AI credit and one AI credit is $0.01, so this is a unit
+ * conversion, not a price model. Premium requests are deliberately excluded:
+ * they are the older per-request unit, they cost nothing until a plan's monthly
+ * allowance is spent, and adding the $0.04 overage rate on top would bill the
+ * same work twice.
+ */
+export const USD_PER_AI_CREDIT = 0.01;
+
+export function aiCredits(nanoAiu: number): number {
+  return nanoAiu / 1e9;
+}
+
+export function usd(nanoAiu: number): number {
+  return aiCredits(nanoAiu) * USD_PER_AI_CREDIT;
+}
+
+/** A run lands in cents, one agent call in fractions of one. */
+export function money(nanoAiu: number): string {
+  const value = usd(nanoAiu);
+  if (!value) return "$0";
+  if (value < 0.001) return "<$0.001";
+  return value < 1 ? `$${value.toFixed(3)}` : `$${value.toFixed(2)}`;
 }
 
 export function mergeUsage(into: UsageBreakdown, other: UsageBreakdown): void {
