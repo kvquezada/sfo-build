@@ -2,9 +2,11 @@
  * Read the trace. The UI polls; nothing is pushed.
  *
  * `node:sqlite` opened READ-ONLY. The visualizer is a reader and must never be
- * able to corrupt a run's record — the single exception is archiving, which is
- * review triage that belongs to the reader rather than the run, and which is
- * why `archived` is the one column a tracer never writes.
+ * able to corrupt a run's record — the exceptions are all review triage, which
+ * belongs to the reader rather than the run: `archived`, and the feedback a
+ * reader leaves on a finished run (`rating`, `note`, `feedback_at`). Those are
+ * the only columns a tracer never writes, and the writer below only ever
+ * touches those.
  *
  * WAL means these reads never block a workflow that is mid-phase.
  */
@@ -41,8 +43,37 @@ function reader(): DatabaseSync {
   return readonlyDb;
 }
 
+/**
+ * The reader-owned columns, and why they are created here.
+ *
+ * `tracer.ts` declares them too, but a Tracer is only ever constructed by a
+ * workflow — so on a database written before this feature existed, they arrive
+ * whenever the next run happens to start, which is not a moment the reader
+ * controls. Since these are the reader's own columns, their existence is the
+ * reader's problem. Both sides run the same additive ALTER, both guard on
+ * `table_info`, and neither can clobber the other.
+ *
+ * Reads degrade without this — `SELECT *` simply returns no such key — so it
+ * runs on the writable connection only, where a missing column is fatal.
+ */
+const OWNED: [string, string][] = [
+  ["archived", "INTEGER DEFAULT 0"],
+  ["rating", "INTEGER"],
+  ["note", "TEXT"],
+  ["feedback_at", "TEXT"],
+];
+
 function writer(): DatabaseSync {
-  writableDb ??= open(false);
+  if (writableDb) return writableDb;
+  const db = open(false);
+  const existing = db
+    .prepare("PRAGMA table_info(sessions)")
+    .all()
+    .map((row) => (row as { name: string }).name);
+  for (const [column, decl] of OWNED) {
+    if (!existing.includes(column)) db.exec(`ALTER TABLE sessions ADD COLUMN ${column} ${decl}`);
+  }
+  writableDb = db;
   return writableDb;
 }
 
@@ -81,6 +112,9 @@ export interface SessionRow {
   premium_requests: number;
   nano_aiu: number;
   archived: number;
+  rating: number | null;
+  note: string | null;
+  feedback_at: string | null;
 }
 
 export interface PhaseRow {
@@ -275,10 +309,46 @@ export function gates(adwId: string): GateRow[] {
   return all<GateRow>("SELECT * FROM gate_results WHERE adw_id = ? ORDER BY id", adwId);
 }
 
-/** The one write. Triage belongs to the reader, so it touches nothing a run wrote. */
+/** Triage belongs to the reader, so this touches nothing a run wrote. */
 export function setArchived(adwId: string, archived: boolean): boolean {
   const db = writer();
   db.prepare("UPDATE sessions SET archived = ? WHERE adw_id = ?").run(archived ? 1 : 0, adwId);
+  const row = db.prepare("SELECT adw_id FROM sessions WHERE adw_id = ?").get(adwId);
+  return Boolean(row);
+}
+
+/**
+ * A reader's judgement of a finished run: a 1-5 score and a note.
+ *
+ * The patch stays partial even though the modal sends both fields together —
+ * it costs nothing, and it keeps "absent" and "cleared" distinguishable, which
+ * is the difference between never rating a run and un-rating one.
+ */
+export function setFeedback(
+  adwId: string,
+  patch: { rating?: number | null; note?: string },
+): boolean {
+  const sets: string[] = [];
+  const params: unknown[] = [];
+  if ("rating" in patch) {
+    sets.push("rating = ?");
+    params.push(patch.rating ?? null);
+  }
+  if ("note" in patch) {
+    // "" is how a reader deletes a note, and NULL is how one was never written.
+    // Neither distinction is worth keeping, so an empty note reads as absent.
+    sets.push("note = ?");
+    params.push(patch.note ? patch.note : null);
+  }
+  const db = writer();
+  if (sets.length) {
+    sets.push("feedback_at = ?");
+    params.push(new Date().toISOString());
+    db.prepare(`UPDATE sessions SET ${sets.join(", ")} WHERE adw_id = ?`).run(
+      ...(params as never[]),
+      adwId,
+    );
+  }
   const row = db.prepare("SELECT adw_id FROM sessions WHERE adw_id = ?").get(adwId);
   return Boolean(row);
 }

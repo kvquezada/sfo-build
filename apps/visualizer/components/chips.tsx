@@ -50,3 +50,22 @@ export function Spend({ premium, aiu }: { premium: number; aiu: number }) {
     </>
   );
 }
+
+/**
+ * A run the reader has judged. Deliberately inert: the whole card is a `<Link>`,
+ * so a button in here would spend its life cancelling navigation. Rating
+ * happens on the run's own page, where the note is too.
+ */
+export function Rating({ rating, note }: { rating: number | null; note: string | null }) {
+  if (rating === null && !note) return null;
+  return (
+    <span className="rating">
+      {rating === null ? null : <span>{rating}/5</span>}
+      {note ? (
+        <span className="rating-note" title={note.split("\n")[0]} aria-label="has a note">
+          ✎
+        </span>
+      ) : null}
+    </span>
+  );
+}

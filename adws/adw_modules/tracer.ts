@@ -44,7 +44,12 @@ CREATE TABLE IF NOT EXISTS sessions (
   total_tokens      INTEGER DEFAULT 0,
   premium_requests  INTEGER DEFAULT 0,
   nano_aiu          INTEGER DEFAULT 0,
-  archived      INTEGER DEFAULT 0    -- review triage, set by the UI; never by a run
+  archived      INTEGER DEFAULT 0,   -- review triage, set by the UI; never by a run
+  -- Reader-owned feedback: like archived, these belong to whoever reads the
+  -- trace rather than to the run, so no tracer method writes them.
+  rating        INTEGER,             -- 1-5; NULL = unrated
+  note          TEXT,                -- the reader's own words about the run
+  feedback_at   TEXT                 -- when either was last touched
 );
 CREATE TABLE IF NOT EXISTS phases (
   phase_id      TEXT PRIMARY KEY,
@@ -124,6 +129,12 @@ const MIGRATIONS: [string, string, string][] = [
   ["sessions", "premium_requests", "INTEGER DEFAULT 0"],
   ["sessions", "nano_aiu", "INTEGER DEFAULT 0"],
   ["agent_sessions", "tools_json", "TEXT"],
+  // `archived` shipped in SCHEMA without a MIGRATIONS entry, so a database
+  // older than it never grew the column. The three below are its neighbours.
+  ["sessions", "archived", "INTEGER DEFAULT 0"],
+  ["sessions", "rating", "INTEGER"],
+  ["sessions", "note", "TEXT"],
+  ["sessions", "feedback_at", "TEXT"],
 ];
 
 export class Tracer {

@@ -14,7 +14,8 @@ sessions(adw_id PK, adw_name, request, status, engineer,
          target, repo_path,                    -- which registry row, which checkout
          started_at, ended_at,
          total_tokens, premium_requests, nano_aiu,
-         archived)
+         archived,                              -- review triage
+         rating, note, feedback_at)             -- the reader's judgement
 
 phases(phase_id PK, adw_id, seq, name, kind, owner, description,
        status, attempt, retries, error, started_at, ended_at)
@@ -48,7 +49,15 @@ agent_sessions(adw_id, agent, coding_agent, model, color, session_id,
 - **`status` starts `'fail'`.** Success is earned.
 - **`parent_id`** is Copilot's own `parentId` — a native span tree.
 - Additive columns need a `MIGRATIONS` entry in `tracer.ts`;
-  `CREATE TABLE IF NOT EXISTS` never revisits an existing table.
+  `CREATE TABLE IF NOT EXISTS` never revisits an existing table. Putting a
+  column in `SCHEMA` alone works on your machine and nowhere else — `archived`
+  shipped that way and never reached a single existing database.
+- **Four columns are the reader's, not the run's.** `archived` (triage) and
+  `rating` / `note` / `feedback_at` (a 1-5 score and a note, set in the visualizer
+  after the fact) are written only by the UI, through the one writable
+  connection in `apps/visualizer/lib/db.ts`. No `Tracer` method touches them,
+  which is what lets a chained ADW rejoin an `adw_id` without erasing what
+  someone wrote about the last pass. `rating` is an integer 1-5, NULL unrated.
 
 ## Event types
 

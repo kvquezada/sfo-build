@@ -5,7 +5,7 @@ import { ago, clip, num } from "@/lib/format.ts";
 import { AutoRefresh } from "@/components/AutoRefresh.tsx";
 import { ThemeToggle } from "@/components/ThemeToggle.tsx";
 import { Breadcrumb } from "@/components/Crumbs.tsx";
-import { PhaseDots, Spend, Status, TargetBadge } from "@/components/chips.tsx";
+import { PhaseDots, Rating, Spend, Status, TargetBadge } from "@/components/chips.tsx";
 import { TargetFilter } from "@/components/TargetFilter.tsx";
 
 export const runtime = "nodejs";
@@ -75,6 +75,7 @@ export default async function SessionsPage({
                   <Spend premium={row.premium_requests} aiu={row.nano_aiu} />
                   <span>{num(row.total_tokens)} tok</span>
                   {row.engineer ? <span>{row.engineer}</span> : null}
+                  <Rating rating={row.rating} note={row.note} />
                 </div>
               </Link>
             ))}

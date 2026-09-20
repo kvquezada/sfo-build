@@ -10,6 +10,7 @@ import { ThemeToggle } from "@/components/ThemeToggle.tsx";
 import { Breadcrumb, SelectionProvider } from "@/components/Crumbs.tsx";
 import { Status, TargetBadge } from "@/components/chips.tsx";
 import { Waterfall } from "@/components/Waterfall.tsx";
+import { Feedback } from "@/components/Feedback.tsx";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -68,6 +69,14 @@ export default async function SessionPage({
             <span className="mono" style={{ fontSize: 11, color: "var(--text-faint)" }}>
               {session.adw_name}
             </span>
+            <span style={{ flex: 1 }} />
+            <Feedback
+              adwId={session.adw_id}
+              rating={session.rating}
+              note={session.note}
+              feedbackAt={session.feedback_at}
+              live={live}
+            />
           </div>
           {session.request ? (
             <p className="request" style={{ marginTop: 0 }}>
