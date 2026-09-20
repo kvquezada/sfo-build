@@ -8,16 +8,26 @@ import { useRouter } from "next/navigation";
  * adding a socket would be a second source of truth for no benefit: SQLite in
  * WAL mode is already safe to read while a run writes.
  *
- * Only polls while something is actually in flight — a finished run's page is
- * static, and re-fetching it forever is just noise on the terminal.
+ * Two cadences, because "nothing is in flight" is not the same as "nothing will
+ * be": a list left open on an idle factory still has to notice the run that
+ * starts a minute later, and a run joined by a later ADW (`--adw-id`) goes back
+ * to running after it was already success. So the poll never stops — it only
+ * slows down, and the badge is what says whether work is actually in flight.
  */
-export function AutoRefresh({ active, ms = 1500 }: { active: boolean; ms?: number }) {
+export function AutoRefresh({
+  active,
+  ms = 1500,
+  idleMs = 5000,
+}: {
+  active: boolean;
+  ms?: number;
+  idleMs?: number;
+}) {
   const router = useRouter();
   useEffect(() => {
-    if (!active) return;
-    const id = setInterval(() => router.refresh(), ms);
+    const id = setInterval(() => router.refresh(), active ? ms : idleMs);
     return () => clearInterval(id);
-  }, [active, ms, router]);
+  }, [active, ms, idleMs, router]);
 
   if (!active) return null;
   return <span className="live">live</span>;

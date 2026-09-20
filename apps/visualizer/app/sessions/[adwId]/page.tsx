@@ -26,6 +26,9 @@ export default async function SessionPage({
   const gates = db.gates(adwId);
   const envelopes = db.envelopes(adwId);
   const events = db.events(adwId, 0, 2000);
+  // A chained run (`--adw-id`) goes running → success → running as the next ADW
+  // joins it, so "not running right now" is not "finished forever". The page
+  // keeps a slow pulse either way; only the cadence changes.
   const live = session.status === "running";
 
   // Events belonging to the run rather than to any phase. Everything else is
@@ -40,7 +43,7 @@ export default async function SessionPage({
           <span className="brand">
             sfo-build <span>/ trace</span>
           </span>
-          {live ? <AutoRefresh active /> : null}
+          <AutoRefresh active={live} idleMs={10_000} />
           <span className="spacer" />
           <span className="dbline">{db.DB_PATH}</span>
         </div>

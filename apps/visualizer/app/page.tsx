@@ -90,7 +90,7 @@ function Masthead({ db: dbPath, live }: { db?: string; live?: boolean }) {
         <span className="brand">
           sfo-build <span>/ trace</span>
         </span>
-        {live ? <AutoRefresh active /> : null}
+        <AutoRefresh active={Boolean(live)} />
         <span className="spacer" />
         {dbPath ? <span className="dbline">{dbPath}</span> : null}
       </div>
