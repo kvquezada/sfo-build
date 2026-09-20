@@ -154,12 +154,25 @@ export function permitted(
   subdir = "",
 ): boolean {
   if (p === "#HEAD") return true; // commits are made by code phases, not agents
-  // Naming a path in `writes:` is what unlocks an otherwise protected one.
-  if ((agent.writes ?? []).some((w) => matches(p, w))) {
-    return !subdir || p.startsWith(`${subdir.replace(/\/+$/, "")}/`);
-  }
+
+  // An explicit `writes:` entry WINS OUTRIGHT, including over `subdir`.
+  //
+  // `subdir` scopes the default, open-ended grant — "you may edit code, and the
+  // code you may edit is this package". An allowlist is a different statement:
+  // someone wrote down exactly where this agent belongs. Some of those places
+  // are repo-level by nature. The planner's spec goes in `specs/` and the
+  // documenter's write-up in `app_docs/`, at the root, whichever package the
+  // work happened in — collecting specs into `apps/api/specs/` would scatter
+  // the record of what was asked for across the monorepo.
+  //
+  // Learned the hard way: with subdir vetoing the allowlist, a planner on a
+  // scoped target wrote its spec, passed both gates, and then had it deleted
+  // by the rollback for being out of scope.
+  if ((agent.writes ?? []).some((w) => matches(p, w))) return true;
+
   if (cfg.defaults.protected_files.some((w) => matches(p, w))) return false;
   if (agent.writes === null) {
+    // The default grant, bounded by the target's scope.
     return !subdir || p.startsWith(`${subdir.replace(/\/+$/, "")}/`);
   }
   return false; // [] = read-only with respect to the repo

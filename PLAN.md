@@ -86,7 +86,9 @@ Works, and maps onto what SSSF needs:
 -p                          non-interactive
 --output-format json        JSONL, one object per line
 --stream off                REQUIRED — otherwise per-token assistant.message_delta floods
---session-id <uuid>         "resume, or set the UUID for a NEW session" = create-or-continue
+--session-id <uuid>         create-or-continue. VERIFIED: send 1 "remember 8417" -> send 2
+                            with the same id recalled "8417". Correction retries keep the
+                            context window intact; no cold restart needed.
 --reasoning-effort          none|minimal|low|medium|high|xhigh|max
 --available-tools           tool allowlist
 --excluded-tools
@@ -233,9 +235,9 @@ gh repo create sfo-build --private        <- ASK THE USER FIRST (outward-facing)
 
 ### P1 · engine + first green run — 40%
 
-**Probe before building:** confirm Copilot `--session-id` create-or-continue survives a
-second send (the correction turn). If it does not, corrections cost a cold restart and the
-retry design must change. This is the single riskiest assumption.
+**Session resume: VERIFIED, no probe needed.** Two sends with the same `--session-id`
+share context (confirmed: "remember 8417" -> recalled "8417"). Build the correction-retry
+loop as designed — re-prompt the same session, never restart.
 
 | File | ~Lines | Job |
 |---|---|---|
@@ -334,7 +336,6 @@ Built against real P1–P4 runs in the db. No fixtures.
 
 | Risk | When | Mitigation |
 |---|---|---|
-| Copilot session resume across correction turns unverified | P1, FIRST | probe before design commits |
 | Tool names guessed (`rg` vs `grep` differed between probes) | P1 | dump real `usage_checkpoint` tool names |
 | Append-only identity leaks Copilot defaults into agent behavior | P2 | over-specify prompts; measure |
 | Zod error prose weaker than pydantic for corrections | P1 | ~20-line formatter |

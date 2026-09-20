@@ -7,7 +7,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { PhaseParams } from "./types.ts";
-import { resolveTools, unsupported, UnknownToolError } from "./tool_map.ts";
+import { missingFromOffer, resolveTools, unsupported, UnknownToolError } from "./tool_map.ts";
 import { agentSessionId, uuidv5, formatZodError } from "./utils.ts";
 
 describe("PhaseParams.description", () => {
@@ -68,6 +68,19 @@ describe("tool_map", () => {
 
   test("duplicates collapse", () => {
     expect(resolveTools("copilot", ["read"], ["view"])).toEqual(["view"]);
+  });
+
+  test("aliases count as satisfied — rg and grep are one tool", () => {
+    // Every model picks one name; without alias handling each one reports the
+    // other as a missing capability on every single run.
+    expect(missingFromOffer(["grep", "rg", "view"], ["rg", "view"])).toEqual([]);
+    expect(missingFromOffer(["grep", "rg", "view"], ["grep", "view"])).toEqual([]);
+    // A genuine gap still reports, and reports once.
+    expect(missingFromOffer(["grep", "rg", "create"], ["view"])).toEqual(["grep", "create"]);
+  });
+
+  test("null requested means no gaps to report", () => {
+    expect(missingFromOffer(null, ["view"])).toEqual([]);
   });
 
   test("a name with no equivalent on a vendor is reported, not dropped", () => {

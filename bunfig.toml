@@ -1,0 +1,5 @@
+# Bun's default test matcher includes `*_test.ts`, which collides with the ADW
+# naming scheme: `adw_plan_build_test.ts` is a workflow, not a test file, and
+# `bun test` happily EXECUTED it. Tests live in adws/adw_modules/*.test.ts.
+[test]
+root = "adws/adw_modules"

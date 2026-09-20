@@ -32,6 +32,10 @@ agents:
     color: "#a78bfa"
     purpose: Turn a request into a plan the builder can implement without asking questions.
     tools: [read, search, glob, shell, write, subagent]
+    # The planner plans; it must not implement. `specs/` is repo-level on
+    # purpose — the record of what was asked for belongs in one place, not
+    # scattered into whichever package a scoped run happened to touch.
+    writes: ["specs/"]
 
   - name: builder
     model: gpt-5.6-terra

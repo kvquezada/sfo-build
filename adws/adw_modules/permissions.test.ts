@@ -48,6 +48,14 @@ describe("permitted", () => {
     expect(permissions.permitted("apps/api-legacy/x.ts", UNRESTRICTED, cfg, "apps/api")).toBe(false);
   });
 
+  test("an explicit allowlist entry overrides subdir — specs/ and app_docs/ are repo-level", () => {
+    const planner = agentOf({ name: "planner", writes: ["specs/"] });
+    expect(permissions.permitted("specs/x.md", planner, cfg, "apps/api")).toBe(true);
+    // ...but it is still an allowlist: nothing outside it is granted.
+    expect(permissions.permitted("apps/api/src/x.ts", planner, cfg, "apps/api")).toBe(false);
+    expect(permissions.permitted("app_docs/x.md", DOCUMENTER, cfg, "apps/api")).toBe(true);
+  });
+
   test("an allowlist admits its own paths and nothing else", () => {
     expect(permissions.permitted("app_docs/note.md", DOCUMENTER, cfg)).toBe(true);
     expect(permissions.permitted("README.md", DOCUMENTER, cfg)).toBe(true);

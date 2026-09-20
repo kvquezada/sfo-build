@@ -73,10 +73,11 @@ export function resolveAgent(cfg: SfoConfig, name: string): AgentConfig {
 
 interface ProbeCache {
   version: number;
-  probed: Record<string, { available: boolean; at: string; detail: string }>;
+  probed: Record<string, { available: boolean; at: string; detail: string; tools?: string[] }>;
 }
 
-const PROBE_VERSION = 1;
+// Bumped when the probe started capturing each model's tool dialect.
+const PROBE_VERSION = 2;
 const PROBE_TTL_MS = 14 * 24 * 60 * 60 * 1000; // a fortnight — the roster is stable
 
 function probePath(cfg: SfoConfig): string {
@@ -106,6 +107,8 @@ export interface ModelVerdict {
   available: boolean;
   detail: string;
   cached: boolean;
+  /** The tool names THIS model actually offers. Dialects differ; see tool_map.ts. */
+  tools: string[];
 }
 
 /**
@@ -115,7 +118,10 @@ export interface ModelVerdict {
  * with every tool excluded, so an AVAILABLE model answers in a couple of
  * seconds and an unavailable one never reaches the API at all.
  */
-function probeCopilotModel(model: string, cwd: string): { available: boolean; detail: string } {
+function probeCopilotModel(
+  model: string,
+  cwd: string,
+): { available: boolean; detail: string; tools: string[] } {
   const result = spawnSync(
     "copilot",
     [
@@ -130,6 +136,9 @@ function probeCopilotModel(model: string, cwd: string): { available: boolean; de
       "--allow-all-tools",
       "--reasoning-effort",
       "none",
+      // bash excluded so a probe can never RUN anything; every other tool is
+      // left listed, because the point is to read this model's dialect out of
+      // session.usage_checkpoint. The prompt itself calls nothing.
       "--excluded-tools",
       "bash",
       "-C",
@@ -139,13 +148,36 @@ function probeCopilotModel(model: string, cwd: string): { available: boolean; de
   );
   const stderr = (result.stderr ?? "").trim();
   if (/is not available/i.test(stderr)) {
-    return { available: false, detail: stderr.split("\n")[0] ?? stderr };
+    return { available: false, detail: stderr.split("\n")[0] ?? stderr, tools: [] };
   }
-  if (result.status === 0) return { available: true, detail: "probe accepted the model" };
-  return {
-    available: false,
-    detail: stderr.split("\n")[0] || `copilot exited ${result.status}`,
-  };
+  if (result.status !== 0) {
+    return {
+      available: false,
+      detail: stderr.split("\n")[0] || `copilot exited ${result.status}`,
+      tools: [],
+    };
+  }
+  return { available: true, detail: "probe accepted the model", tools: offeredTools(result.stdout ?? "", model) };
+}
+
+/** Read `tools[].name` for this model out of a probe's usage_checkpoint. */
+function offeredTools(stdout: string, model: string): string[] {
+  for (const line of stdout.split("\n")) {
+    if (!line.includes("usage_checkpoint")) continue;
+    try {
+      const event = JSON.parse(line) as {
+        data?: { promptCacheBreakState?: { models?: Record<string, { tools?: { name?: string }[] }> }[] };
+      };
+      const models = event.data?.promptCacheBreakState?.[0]?.models ?? {};
+      const stats = models[model] ?? Object.values(models)[0];
+      if (stats?.tools) {
+        return stats.tools.map((t) => String(t.name ?? "")).filter(Boolean).sort();
+      }
+    } catch {
+      continue;
+    }
+  }
+  return [];
 }
 
 export function probeModel(
@@ -157,7 +189,7 @@ export function probeModel(
   const hit = cache.probed[model];
   const fresh = hit && Date.now() - Date.parse(hit.at) < PROBE_TTL_MS;
   if (hit && fresh && !opts.refresh) {
-    return { model, available: hit.available, detail: hit.detail, cached: true };
+    return { model, available: hit.available, detail: hit.detail, tools: hit.tools ?? [], cached: true };
   }
   const verdict = probeCopilotModel(model, opts.cwd ?? process.cwd());
   cache.probed[model] = { ...verdict, at: new Date().toISOString() };

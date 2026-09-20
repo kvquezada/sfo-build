@@ -31,12 +31,16 @@ If `previous_envelope` is a `VerifyOutput` with `passed: false`, its `failures`
 are verbatim command output. Trust that output over any summary of it,
 including your own from a previous turn. Fix every failure listed.
 
-When the code is written, run the suite and confirm it is green before you
-report:
+When the code is written, run the suite:
 
 ```
 npx nx run-many -t test
 ```
+
+Anything your own change broke, fix before reporting. A failure that predates
+your change and is unrelated to it is not yours to chase — note it and report
+success; the workflow's repair loop will hand it back to you with the verbatim
+output if it matters.
 
 ## Report
 

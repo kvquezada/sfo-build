@@ -17,7 +17,7 @@ import { loadConfig, probeModel, promptPaths, rosterModels } from "./adw_modules
 import * as permissions from "./adw_modules/permissions.ts";
 import { configPath, factoryRoot, parseArgs, promptRoot } from "./adw_modules/session.ts";
 import { resolveTarget } from "./adw_modules/targets.ts";
-import { resolveTools } from "./adw_modules/tool_map.ts";
+import { missingFromOffer, resolveTools } from "./adw_modules/tool_map.ts";
 import { expandHome } from "./adw_modules/utils.ts";
 
 const OK = "  \x1b[32m✓\x1b[0m";
@@ -107,14 +107,51 @@ async function main(): Promise<number> {
   }
 
   heading("models  (no catalog exists — this is a live probe, cached 14d)");
+  const dialects = new Map<string, string[]>();
   for (const model of rosterModels(cfg)) {
     const verdict = probeModel(cfg, model, { refresh, cwd: factoryRoot() });
+    dialects.set(model, verdict.tools);
     const who = cfg.agents.filter((a) => a.model === model).map((a) => a.name).join(", ");
     const tag = verdict.cached ? "cached" : "probed";
     if (verdict.available) {
       process.stdout.write(`${OK} ${model.padEnd(20)} ${tag.padEnd(7)} ${who}\n`);
     } else {
       fail(`${model.padEnd(20)} ${tag.padEnd(7)} ${who} — ${verdict.detail}`);
+    }
+  }
+
+  // A model picks its own tool dialect, so --available-tools is a request and
+  // not a guarantee. Measured: gpt-5.6-terra has no create/edit at all and
+  // writes through bash, while gemini-3.6-flash has both. Surface that here
+  // rather than let an agent discover it mid-phase.
+  heading("tool dialects  (--available-tools is an intersection, not a promise)");
+  for (const agent of cfg.agents) {
+    const offered = dialects.get(agent.model) ?? [];
+    if (!offered.length) continue;
+    let requested: string[] | null;
+    try {
+      requested = resolveTools(agent.coding_agent, agent.tools, agent.tools_extra);
+    } catch {
+      continue; // already reported in the agents section
+    }
+    // bash is excluded from the probe so it can never run anything; it is
+    // always present in a real call, so it is not a real gap.
+    const gaps = missingFromOffer(requested, offered).filter((t) => !t.includes("bash"));
+    if (!gaps.length) {
+      process.stdout.write(`${OK} ${agent.name.padEnd(11)} gets everything it asks for\n`);
+      continue;
+    }
+    const writesFiles = agent.writes === null || (agent.writes?.length ?? 0) > 0;
+    const hasShell = (agent.tools ?? []).includes("shell");
+    process.stdout.write(
+      `${WARN} ${agent.name.padEnd(11)} ${agent.model} does not offer: ${gaps.join(", ")}\n`,
+    );
+    if (writesFiles && !hasShell && gaps.some((g) => g === "create" || g === "edit")) {
+      fail(
+        `${agent.name} is expected to write files, its model has no create/edit, ` +
+          `and it has no 'shell' either — it would have no way to write anything. ` +
+          `Add 'shell' to its tools:.`,
+      );
     }
   }
 

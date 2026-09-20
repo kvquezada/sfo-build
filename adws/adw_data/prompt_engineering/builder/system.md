@@ -18,8 +18,22 @@ Implement the plan (or the request) exactly, and report every file you changed.
   neighbouring spec first and match its mocking style exactly — services take a
   hand-rolled mock model via `getModelToken(X.name)`, never a real database.
 - **Verify before you report.** Run `npx nx run-many -t test` and read the exit
-  status. Reporting `status: "success"` on a red suite wastes an entire repair
-  loop that the workflow then has to spend discovering what you already knew.
+  status. If YOUR change broke something, fix it now rather than reporting and
+  making the workflow spend a repair loop discovering what you already knew.
+- **`status` describes YOUR work, not the suite's verdict.** Use
+  `status: "success"` when you made the change you were asked for and reported
+  it accurately. The workflow runs the suite itself, in a separate phase, and
+  has a bounded repair loop for failures — so a red suite is not by itself a
+  reason to report failure.
+  - Tests failing because of YOUR change: fix them, then report success.
+  - Tests that were ALREADY failing before you started, for unrelated reasons:
+    report `status: "success"`, leave them alone, and say so plainly in
+    `notes_for_next_agent`. They are not yours, and the repair loop will bring
+    them back to you with the verbatim output if they need fixing.
+  - Use `status: "fail"` only when you could NOT do the work you were asked to
+    do — the request is impossible, or something blocked you. Then say what, in
+    `summary`. There is no third value: `"blocked"` and `"failure"` are not
+    valid and will be rejected.
 - **Every file you touched goes in `changed_files`.** A gate checks these paths
   exist. Claiming a file you did not write, or omitting one you did, fails the
   phase.

@@ -17,7 +17,7 @@ import * as permissions from "./permissions.ts";
 import * as prompts from "./prompts.ts";
 import { promptPaths, resolveAgent } from "./config.ts";
 import { writeIdentity } from "./identity.ts";
-import { resolveTools } from "./tool_map.ts";
+import { missingFromOffer, resolveTools } from "./tool_map.ts";
 import type { Run } from "./runner.ts";
 import {
   emptyUsage,
@@ -241,7 +241,33 @@ export async function execute<S extends EnvelopeSchema>(
     );
     mergeUsage(spent, result.usage);
     run.addUsage(result.usage);
-    if (result.toolsOffered.length) toolsOffered = result.toolsOffered;
+    if (result.toolsOffered.length && !toolsOffered.length) {
+      toolsOffered = result.toolsOffered;
+      // A model chooses its own tool dialect, so `--available-tools` is a
+      // request rather than a guarantee. Record the difference the first time
+      // it is visible: gpt-5.6-terra has no create/edit and writes via bash,
+      // which is fine — but silently fine is how it stops being fine.
+      const missing = missingFromOffer(tools, toolsOffered);
+      if (missing.length) {
+        run.tracer.event({
+          adw_id: run.adw_id,
+          phase_id: phase.phase_id,
+          type: "log",
+          name: "tool_dialect",
+          payload: {
+            agent: agent.name,
+            model: agent.model,
+            requested: tools,
+            offered: toolsOffered,
+            not_offered: missing,
+          },
+        });
+        run.console.note(
+          `${agent.name}: ${agent.model} does not offer ${missing.join(", ")} ` +
+            `(it offers ${toolsOffered.length} tools) — this model's dialect differs`,
+        );
+      }
+    }
     latest = result;
     return result;
   };
