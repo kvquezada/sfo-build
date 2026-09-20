@@ -321,7 +321,13 @@ Built against real P1–P4 runs in the db. No fixtures.
 
 1. **Replacing Copilot's system prompt.** No flag exists. Identity is append-only, forever.
 2. **Fail-fast model validation.** No catalog. Cached probe is the best available.
-3. **A single honest `total_cost`.** No dollars from Copilot. Columns split.
+3. ~~**A single honest `total_cost`.**~~ **Resolved — Copilot does report money.**
+   `totalNanoAiu` is documented as the session's AI-credit *cost*, and an AI credit is
+   $0.01, so `nano_aiu / 1e11` is USD by unit conversion rather than by guess. Dollars
+   are DERIVED on read (`usd()` in `types.ts`), never stored as a second column that
+   could drift from the number it came from. Premium requests stay unpriced: they are
+   the older per-request unit and cost nothing until a plan's allowance is spent, so the
+   $0.04 overage rate would bill the same work twice.
 4. **Context-occupancy gauge.** `--context` is a tier, not a number; no catalog to read a
    window from. `agent_sessions.context_window` will be null/0 for Copilot.
 5. **pi harness extensions** (`-e file.ts`). Neither CLI loads them. Native `task` + MCP instead.

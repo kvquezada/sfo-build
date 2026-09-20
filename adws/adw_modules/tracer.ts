@@ -10,10 +10,11 @@
  * an ExperimentalWarning, which the npm scripts silence with
  * NODE_OPTIONS=--no-warnings.
  *
- * Cost is TWO columns, not one. Copilot reports no dollars anywhere (known
- * impossibility 3), so SSSF's `total_cost REAL` would be a fabrication with a
- * decimal point. `premium_requests` and `nano_aiu` are what the stream
- * actually says.
+ * Cost is stored as the units the stream reports — `premium_requests` and
+ * `nano_aiu` — and never as a `total_cost REAL`. Not because dollars are
+ * unknowable: `nano_aiu` IS money, at 1e9 nanoAIU per AI credit and $0.01 per
+ * credit, and `usd()` in types.ts converts it. It is because a stored total
+ * can drift from the figure it was derived from, while a derived one cannot.
  */
 
 import { DatabaseSync } from "node:sqlite";

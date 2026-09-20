@@ -1,4 +1,4 @@
-import { num } from "@/lib/format.ts";
+import { credits, money, num } from "@/lib/format.ts";
 
 export function Status({ status }: { status: string }) {
   return (
@@ -35,16 +35,18 @@ export function PhaseDots({
 }
 
 /**
- * Spend, as the two numbers Copilot actually reports.
+ * Spend, led by the dollar figure.
  *
- * There is deliberately no dollar figure: Copilot exposes none, and a single
- * invented total would be a guess wearing a decimal point.
+ * Copilot exposes no `total_cost` field, but `nano_aiu` IS money: GitHub
+ * documents it as the run's AI-credit cost and prices a credit at $0.01. The
+ * dollars are converted, not invented, so they lead and the raw units follow
+ * for anyone reconciling against a Copilot bill.
  */
 export function Spend({ premium, aiu }: { premium: number; aiu: number }) {
   return (
     <>
+      <span title={`${credits(aiu).toFixed(2)} AI credits at $0.01 each`}>{money(aiu)}</span>
       <span title="premium requests">{num(premium)} prem</span>
-      <span title="nano AIU">{num(aiu)} aiu</span>
     </>
   );
 }

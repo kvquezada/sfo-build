@@ -46,12 +46,23 @@ function writer(): DatabaseSync {
   return writableDb;
 }
 
+/**
+ * `node:sqlite` hands back rows with a NULL prototype. They read fine on the
+ * server and then die at the client boundary — React refuses to serialize
+ * anything that is not a plain object — so every row is respread here, once,
+ * rather than at each call site that happens to reach a component.
+ */
+function plain<T>(row: T): T {
+  return { ...row };
+}
+
 function all<T>(sql: string, ...params: unknown[]): T[] {
-  return reader().prepare(sql).all(...(params as never[])) as T[];
+  return (reader().prepare(sql).all(...(params as never[])) as T[]).map(plain);
 }
 
 function one<T>(sql: string, ...params: unknown[]): T | undefined {
-  return reader().prepare(sql).get(...(params as never[])) as T | undefined;
+  const row = reader().prepare(sql).get(...(params as never[])) as T | undefined;
+  return row === undefined ? undefined : plain(row);
 }
 
 // ── row shapes (the db's own columns, not the engine's in-memory types) ──────

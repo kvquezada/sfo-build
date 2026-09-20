@@ -28,3 +28,35 @@ export function num(value: number | null | undefined): string {
 export function clip(text: string, limit: number): string {
   return text.length <= limit ? text : `${text.slice(0, limit)}…`;
 }
+
+/**
+ * Dollars, from the one Copilot number that is denominated in money.
+ *
+ * GitHub documents `totalNanoAiu` as the session's AI-credit COST in nano-AI
+ * units, and prices an AI credit at $0.01 — so `nano_aiu / 1e9 / 100` is USD,
+ * not an invented rate. It is still called an estimate in the UI because the
+ * credit conversion belongs to Copilot billing rather than to the stream, and
+ * GitHub's own SDK docs say to verify before showing currency.
+ *
+ * Premium requests are deliberately NOT priced here. They are the older
+ * per-request unit, they only cost anything once a plan's monthly allowance is
+ * gone, and multiplying them by the $0.04 overage rate would double-count the
+ * same work the credits already charge for.
+ */
+const USD_PER_AI_CREDIT = 0.01;
+
+export function credits(nanoAiu: number | null | undefined): number {
+  return (nanoAiu ?? 0) / 1e9;
+}
+
+export function usd(nanoAiu: number | null | undefined): number {
+  return credits(nanoAiu) * USD_PER_AI_CREDIT;
+}
+
+/** Runs land in cents, phases in fractions of one — three places keeps both real. */
+export function money(nanoAiu: number | null | undefined): string {
+  const value = usd(nanoAiu);
+  if (!value) return "$0";
+  if (value < 0.001) return "<$0.001";
+  return value < 1 ? `$${value.toFixed(3)}` : `$${value.toFixed(2)}`;
+}
