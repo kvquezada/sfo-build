@@ -30,7 +30,7 @@ import type { z } from "zod";
 
 import * as agents from "./agents.ts";
 import type { AgentMapEntry } from "./agents.ts";
-import { Console } from "./console.ts";
+import { Console, type PhaseConsole } from "./console.ts";
 import type { Tracer } from "./tracer.ts";
 import {
   emptyUsage,
@@ -50,12 +50,23 @@ import { ensureDir, expandHome, formatZodError, nowIso } from "./utils.ts";
 export class PhaseHandle implements AsyncDisposable {
   private finalized = false;
   private readonly clock = performance.now();
+  /**
+   * The reporter, bound to THIS phase.
+   *
+   * Every line this phase produces goes through here rather than through
+   * `run.console`, whose ambient lane is only correct while one phase is open.
+   * Two phases running at once is what makes the difference load-bearing.
+   */
+  readonly console: PhaseConsole;
+
   constructor(
     private readonly run: Run,
     readonly phase: Phase,
     /** The repo this phase stands in — resolved before the phase opened. */
     readonly target: ResolvedTarget,
-  ) {}
+  ) {
+    this.console = run.console.lane(phase);
+  }
 
   /** Record detail inside this phase — printed and traced together. */
   log(payload: Record<string, unknown>): void {
@@ -66,7 +77,7 @@ export class PhaseHandle implements AsyncDisposable {
       name: this.phase.params.name,
       payload,
     });
-    this.run.console.note(
+    this.console.note(
       Object.entries(payload)
         .map(([k, v]) => `${k}: ${v}`)
         .join(", "),
@@ -81,7 +92,7 @@ export class PhaseHandle implements AsyncDisposable {
       throw new Error("ph.call() is only valid inside an agent phase");
     }
     try {
-      return await agents.execute(this.run, this.phase, call, this.target);
+      return await agents.execute(this.run, this.phase, call, this.target, this.console);
     } catch (error) {
       // Record it here, where the message still exists: the disposer is not
       // handed the in-flight error and would otherwise write an empty reason.
@@ -161,7 +172,15 @@ export class Run {
 
   agentMap: Record<string, AgentMapEntry> = {};
   private seq: number;
-  private openPhase: Phase | null = null;
+  /**
+   * Every phase currently in flight. A SET, not a slot.
+   *
+   * Two phases are open at once whenever an ADW runs a pair concurrently, and a
+   * single slot would have the second overwrite the first — leaving
+   * `recordFailure` to attach an escaped error to whichever phase happened to
+   * start last.
+   */
+  private readonly openPhases = new Set<Phase>();
   private readonly agentMapPath: string;
 
   constructor(init: RunInit) {
@@ -274,7 +293,7 @@ export class Run {
       started_at: nowIso(),
     };
     this.phases.push(phase);
-    this.openPhase = phase;
+    this.openPhases.add(phase);
     this.tracer.phaseUpsert({ ...phase, status: "running" });
     this.tracer.event({
       adw_id: this.adw_id,
@@ -288,21 +307,27 @@ export class Run {
   }
 
   closePhase(phase: Phase): void {
-    if (this.openPhase === phase) this.openPhase = null;
+    this.openPhases.delete(phase);
   }
 
   /**
-   * Amend the phase that was in flight when an unexpected error escaped.
+   * Amend the phase(s) that were in flight when an unexpected error escaped.
    *
    * The disposer has already written the row by the time the error reaches the
    * ADW's catch, but `phaseUpsert` is an upsert — so the reason can still be
    * attached to the right phase rather than lost to the console.
+   *
+   * Every open phase is amended, not one. When two ran concurrently and the
+   * error escaped both, naming only one of them would leave the other reading
+   * as a phase that failed for no reason anyone wrote down.
    */
   recordFailure(error: unknown): void {
-    const phase = this.openPhase ?? this.phases[this.phases.length - 1];
-    if (!phase || phase.status === "success") return;
-    if (!phase.error) {
-      phase.error = String((error as Error)?.message ?? error).slice(0, 1000);
+    const open = [...this.openPhases];
+    const candidates = open.length ? open : [this.phases[this.phases.length - 1]];
+    const reason = String((error as Error)?.message ?? error).slice(0, 1000);
+    for (const phase of candidates) {
+      if (!phase || phase.status === "success" || phase.error) continue;
+      phase.error = reason;
       this.tracer.phaseUpsert(phase);
     }
   }
