@@ -41,9 +41,19 @@ import type { AgentConfig, SfoConfig } from "./types.ts";
 
 export class PermissionBreach extends Error {}
 
+/**
+ * `--no-optional-locks` on every call, deliberately.
+ *
+ * `diff` and `status` refresh the index as a side effect, which takes
+ * `.git/index.lock`. Two agents reading the same checkout at the same time —
+ * which is what a concurrent review pair is — then race for that lock, and the
+ * loser reports a snapshot failure as if it were a finding about the code.
+ * Suppressing the optional refresh costs nothing here: every read below is a
+ * comparison, never a write.
+ */
 function git(args: string[], cwd: string): string {
   try {
-    return execFileSync("git", args, {
+    return execFileSync("git", ["--no-optional-locks", ...args], {
       cwd,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],

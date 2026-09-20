@@ -297,17 +297,33 @@ export function geometry(
 /**
  * Block positions in track-%, for every phase that has started.
  *
- * Phases are sequential by doctrine and the render must say so: blocks never
- * stack. Three rules, applied in order, keep that true inside a fixed track:
+ * Phases are MOSTLY sequential, and the sequence is what the track packs — but
+ * "mostly" is the whole difficulty. An ADW may run two agents at once (the
+ * review pair: reviewer ‖ adversary), and a cursor that advances by every
+ * block in turn draws the second one after the first, in a gap where nothing
+ * happened. That is not a rendering nicety: it is the render contradicting the
+ * timestamps it was given, and it hid a working concurrent pair.
+ *
+ * So the unit that packs is a GROUP — a maximal run of phases that overlap in
+ * real time. Groups are laid end to end; inside one, members keep their real
+ * offsets and are free to stack. A run with no concurrency has one member per
+ * group and lays out exactly as it always did.
+ *
+ * Four rules, applied in order, inside a fixed track:
  *
  *  1. Nothing renders narrower than the floor — a 40ms commit is a real step
  *     and an invisible one is a lie by omission.
  *  2. When the row then overruns the track, idle gaps are squeezed first.
  *     Gaps carry the least information here; phases run back to back.
- *  3. Only then are the long blocks squeezed, and only their length ABOVE the
+ *  3. Only then are the groups squeezed, and only their length ABOVE the
  *     floor is taken, proportionally. A uniform scale over everything would
  *     shrink the floored blocks straight back under the floor, which is how
  *     the floor silently stops working.
+ *  4. A squeezed group scales its members' offsets by the same factor as its
+ *     own above-floor length, so the member that defined the group's width
+ *     still defines it afterwards. Squeezed to nothing, concurrent phases
+ *     converge on one x — which is what "at the same time" looks like when
+ *     there is no room left to say it.
  */
 function layout(
   phases: PhaseRow[],
@@ -333,10 +349,45 @@ function layout(
     .sort((a, b) => a.left - b.left);
   if (!timed.length) return {};
 
-  const widths = timed.map((b) => Math.max(b.width, MIN_BLOCK_PCT));
-  // Idle time before each block. Overlapping starts read as no gap at all.
-  const gaps = timed.map((b, i) =>
-    i === 0 ? Math.max(b.left, 0) : Math.max(b.left - (timed[i - 1]!.left + timed[i - 1]!.width), 0),
+  // ── group by real-time overlap ─────────────────────────────────────────────
+  // Overlap is decided on the REAL span, never the floored one: a 40ms commit
+  // widened to the floor must not invent concurrency with the phase after it.
+  interface Member {
+    id: string;
+    offset: number; // from the group's own start, in track-%
+    width: number; // floored
+  }
+  interface Group {
+    left: number; // real start, for gap arithmetic
+    end: number; // real end of the whole group
+    members: Member[];
+    natural: number; // width the group wants: max(offset + width)
+  }
+
+  const groups: Group[] = [];
+  for (const b of timed) {
+    const open = groups[groups.length - 1];
+    if (open && b.left < open.end) {
+      open.members.push({ id: b.id, offset: b.left - open.left, width: 0 });
+      open.end = Math.max(open.end, b.left + b.width);
+    } else {
+      groups.push({
+        left: b.left,
+        end: b.left + b.width,
+        members: [{ id: b.id, offset: 0, width: 0 }],
+        natural: 0,
+      });
+    }
+    const group = groups[groups.length - 1]!;
+    const member = group.members[group.members.length - 1]!;
+    member.width = Math.max(b.width, MIN_BLOCK_PCT);
+    group.natural = Math.max(group.natural, member.offset + member.width);
+  }
+
+  const widths = groups.map((g) => g.natural);
+  // Idle time before each group. Overlap inside a group is not a gap.
+  const gaps = groups.map((g, i) =>
+    i === 0 ? Math.max(g.left, 0) : Math.max(g.left - groups[i - 1]!.end, 0),
   );
 
   let over = sum(widths) + sum(gaps) - avail;
@@ -357,18 +408,35 @@ function layout(
     over -= Math.min(over, excess);
   }
 
-  // More blocks than the track can hold even at the floor — every one is now
-  // exactly the floor, and a uniform scale is the only answer left.
+  // How much of each group's above-floor length survived. Members scale by the
+  // same factor, so whichever one defined `natural` still ends flush with the
+  // group's right edge. Captured BEFORE the uniform pass below, which is a
+  // scale over the whole track rather than a squeeze within a group.
+  const kept = groups.map((g, i) => {
+    const room = g.natural - MIN_BLOCK_PCT;
+    return room > 0 ? Math.max(widths[i]! - MIN_BLOCK_PCT, 0) / room : 1;
+  });
+
+  // More groups than the track can hold even at the floor — every one is now
+  // exactly the floor, and a uniform scale is the only answer left. It applies
+  // to members too, or a floored block would overrun the group holding it.
+  let uniform = 1;
   if (over > 0) {
-    const keep = avail / sum(widths);
-    for (const [i] of widths.entries()) widths[i] = widths[i]! * keep;
+    uniform = avail / sum(widths);
+    for (const [i] of widths.entries()) widths[i] = widths[i]! * uniform;
   }
 
   const out: Record<string, { left: number; width: number }> = {};
   let edge = zone;
-  for (const [i, b] of timed.entries()) {
+  for (const [i, group] of groups.entries()) {
     edge += gaps[i]!;
-    out[b.id] = { left: edge, width: widths[i]! };
+    const keep = kept[i]!;
+    for (const member of group.members) {
+      out[member.id] = {
+        left: edge + member.offset * keep * uniform,
+        width: (MIN_BLOCK_PCT + (member.width - MIN_BLOCK_PCT) * keep) * uniform,
+      };
+    }
     edge += widths[i]!;
   }
   return out;

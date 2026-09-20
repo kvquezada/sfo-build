@@ -11,6 +11,7 @@
 import { describe, expect, test, beforeEach, afterEach } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 
 import { Run } from "./runner.ts";
@@ -146,5 +147,85 @@ describe("phase", () => {
         description: "Find what the web app does with this request",
       }),
     ).toThrow(/did not resolve/);
+  });
+});
+
+/**
+ * Two phases open at once — what a concurrent review pair does.
+ *
+ * The failure these guard against is the quiet kind again. Before phase lanes,
+ * `Console` held ONE phase id and filed every line against it, so the second
+ * judge's gate results and retries were recorded as the first judge's. Nothing
+ * errored; the trace simply described a run that never happened.
+ */
+describe("concurrent phases", () => {
+  const logsFor = (phaseId: string): string[] => {
+    const db = new DatabaseSync(path.join(root, "sfo.db"));
+    const rows = db
+      .prepare("SELECT payload_json FROM events WHERE phase_id = ? AND type = 'log'")
+      .all(phaseId) as { payload_json: string }[];
+    db.close();
+    return rows.map((r) => String(JSON.parse(r.payload_json).message));
+  };
+
+  test("each phase's lines are filed against its own phase, not the last one opened", async () => {
+    const a = run.phase({ name: "review_1", kind: "agent", owner: "reviewer", description: "Judge the requirements one at a time" });
+    const b = run.phase({ name: "adversary_1", kind: "agent", owner: "adversary", description: "Hunt for what nobody asked for" });
+
+    // Interleaved on purpose: b opened last, so an ambient lane would swallow
+    // both of these.
+    a.console.note("reviewer looked at the dto");
+    b.console.note("adversary looked at the service");
+
+    a.done();
+    b.done();
+    await a[Symbol.asyncDispose]();
+    await b[Symbol.asyncDispose]();
+
+    expect(logsFor(a.phase.phase_id).join(" ")).toContain("reviewer looked at the dto");
+    expect(logsFor(a.phase.phase_id).join(" ")).not.toContain("adversary looked at the service");
+    expect(logsFor(b.phase.phase_id).join(" ")).toContain("adversary looked at the service");
+  });
+
+  test("while both are open, every line names its owner", async () => {
+    const a = run.phase({ name: "review_1", kind: "agent", owner: "reviewer", description: "Judge the requirements one at a time" });
+    const b = run.phase({ name: "adversary_1", kind: "agent", owner: "adversary", description: "Hunt for what nobody asked for" });
+    a.console.note("two lanes are open");
+    a.done();
+    b.done();
+    await a[Symbol.asyncDispose]();
+    await b[Symbol.asyncDispose]();
+    expect(logsFor(a.phase.phase_id).join(" ")).toContain("[reviewer] two lanes are open");
+  });
+
+  test("a lone phase is untagged — the default chain reads exactly as it did", async () => {
+    const only = run.phase({ name: "review_1", kind: "agent", owner: "reviewer", description: "Judge the requirements one at a time" });
+    only.console.note("one lane, no tag");
+    only.done();
+    await only[Symbol.asyncDispose]();
+    expect(logsFor(only.phase.phase_id).join(" ")).toContain("one lane, no tag");
+    expect(logsFor(only.phase.phase_id).join(" ")).not.toContain("[reviewer]");
+  });
+
+  test("an escaped error names every phase still open, not whichever ran last", async () => {
+    const a = run.phase({ name: "review_1", kind: "agent", owner: "reviewer", description: "Judge the requirements one at a time" });
+    const b = run.phase({ name: "adversary_1", kind: "agent", owner: "adversary", description: "Hunt for what nobody asked for" });
+    run.recordFailure(new Error("the checkout vanished"));
+    expect(a.phase.error).toBe("the checkout vanished");
+    expect(b.phase.error).toBe("the checkout vanished");
+    await a[Symbol.asyncDispose]();
+    await b[Symbol.asyncDispose]();
+  });
+
+  test("closing one phase does not close the other's lane", async () => {
+    const a = run.phase({ name: "review_1", kind: "agent", owner: "reviewer", description: "Judge the requirements one at a time" });
+    const b = run.phase({ name: "adversary_1", kind: "agent", owner: "adversary", description: "Hunt for what nobody asked for" });
+    a.done();
+    await a[Symbol.asyncDispose]();
+
+    b.console.note("still running after the reviewer finished");
+    b.done();
+    await b[Symbol.asyncDispose]();
+    expect(logsFor(b.phase.phase_id).join(" ")).toContain("still running after the reviewer finished");
   });
 });

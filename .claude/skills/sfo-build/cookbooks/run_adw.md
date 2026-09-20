@@ -100,6 +100,39 @@ npm run sdlc -- --target api "add pagination" --ship
 Opt-in, because a push is outward-facing in a way a local commit is not. It uses
 your own `gh` credentials and holds none of its own.
 
+## A second judge: `--adversary`
+
+`npm run br` and `npm run sdlc` take `--adversary`, which adds one more
+read-only agent to each review round:
+
+```bash
+npm run br -- --target api "add pagination" --adversary
+```
+
+| | reviewer | adversary |
+|---|---|---|
+| model | `claude-sonnet-5` | `gemini-3.6-flash` |
+| question | is each requirement met? | what does this do that nobody asked for? |
+| writes | `review.md` | `adversary.md` |
+| verdict | **gates the commit** | advisory |
+
+The two run **concurrently**, which is the only way the second opinion is
+independent: every agent is given `--add-dir` onto the session directory, so a
+judge that ran second would find the other's report sitting there. Neither is
+allowed to read the other's file, and the adversary's prompt says so.
+
+Objections from both are merged into one envelope for the builder's revise
+phase, so an adversary rejection costs a revision loop. It cannot fail the run:
+the commit reads the reviewer's `approved` and nothing else. Committing over an
+unresolved objection prints a warning naming every item.
+
+Both judges run `git --no-optional-locks …`, and `permissions.ts` does too —
+two agents refreshing one index race for `.git/index.lock` otherwise.
+
+> **The flag goes LAST**, exactly like `--ship`. `parseArgs` takes the next
+> non-`--` token as a flag's value, so `--adversary "add pagination"` swallows
+> the prompt and the run dies on "a prompt is required".
+
 ## Before launching
 
 ```bash

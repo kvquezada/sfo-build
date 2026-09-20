@@ -15,6 +15,7 @@ import type { z } from "zod";
 import * as copilot from "./agent_copilot.ts";
 import * as permissions from "./permissions.ts";
 import * as prompts from "./prompts.ts";
+import type { PhaseConsole } from "./console.ts";
 import { promptPaths, resolveAgent } from "./config.ts";
 import { writeIdentity } from "./identity.ts";
 import { missingFromOffer, resolveTools } from "./tool_map.ts";
@@ -154,6 +155,11 @@ export async function execute<S extends EnvelopeSchema>(
   call: AgentCall<S>,
   /** The repo this phase stands in. Defaults to the run's primary. */
   target: ResolvedTarget = run.target,
+  /**
+   * The reporter bound to THIS phase. Defaults to the ambient lane, which is
+   * correct for a phase running on its own; a concurrent pair must pass its own.
+   */
+  lane: PhaseConsole = run.console.lane(phase),
 ): Promise<z.infer<S>> {
   const agent = resolveAgent(run.cfg, phase.params.owner);
   const key = agentKey(agent.name, target.name);
@@ -215,7 +221,7 @@ export async function execute<S extends EnvelopeSchema>(
       identity_file: identity.file,
     },
   });
-  run.console.agentStarted(agent.name, agent.model, sessionId);
+  lane.agentStarted(agent.name, agent.model, sessionId);
 
   const spent: UsageBreakdown = emptyUsage();
   let latest: copilot.CopilotRunResult | null = null;
@@ -253,7 +259,7 @@ export async function execute<S extends EnvelopeSchema>(
             ended_at: record.ended_at ?? "",
             payload: { ...record, agent: agent.name },
           });
-          run.console.toolCall(agent.name, record.label, record.ok, record.duration_ms);
+          lane.toolCall(agent.name, record.label, record.ok, record.duration_ms);
         },
         onSpawn: (pid) =>
           run.tracer.processStart(
@@ -289,7 +295,7 @@ export async function execute<S extends EnvelopeSchema>(
             not_offered: missing,
           },
         });
-        run.console.note(
+        lane.note(
           `${agent.name}: ${agent.model} does not offer ${missing.join(", ")} ` +
             `(it offers ${toolsOffered.length} tools) — this model's dialect differs`,
         );
@@ -307,7 +313,7 @@ export async function execute<S extends EnvelopeSchema>(
   const treeBefore = permissions.snapshot(target.path);
 
   let result = await send(userText);
-  let parsed = await parseWithRetries(run, phase, call, key, result, send);
+  let parsed = await parseWithRetries(run, phase, call, key, result, send, lane);
   let envelope = parsed.envelope;
   let attempt = parsed.attempt;
 
@@ -329,7 +335,7 @@ export async function execute<S extends EnvelopeSchema>(
         name: gateName,
         payload: { attempt: gateAttempt, violations: found, checks: report.checks },
       });
-      run.console.gateResult(gateName, report);
+      lane.gateResult(gateName, report);
       violations.push(...found);
     }
     if (!violations.length) break;
@@ -339,12 +345,12 @@ export async function execute<S extends EnvelopeSchema>(
       );
     }
     phase.attempt = gateAttempt;
-    run.console.retry(agent.name, gateAttempt, retries, `${violations.length} gate violation(s)`);
+    lane.retry(agent.name, gateAttempt, retries, `${violations.length} gate violation(s)`);
     result = await send(
       `Your previous response failed validation:\n- ${violations.join("\n- ")}\n\n` +
         `Fix these problems, then re-emit ONLY your Report JSON.`,
     );
-    parsed = await parseWithRetries(run, phase, call, key, result, send);
+    parsed = await parseWithRetries(run, phase, call, key, result, send, lane);
     envelope = parsed.envelope;
     attempt = parsed.attempt;
   }
@@ -398,7 +404,7 @@ export async function execute<S extends EnvelopeSchema>(
     attempt,
     valid: true,
   });
-  run.console.envelopeSummary(call.outputTypeName, envelope);
+  lane.envelopeSummary(call.outputTypeName, envelope);
 
   const context = latest as copilot.CopilotRunResult | null;
   run.tracer.agentSessionRow({
@@ -444,7 +450,7 @@ export async function execute<S extends EnvelopeSchema>(
       files_modified: context?.filesModified ?? [],
     },
   });
-  run.console.agentFinished(agent.name, spent);
+  lane.agentFinished(agent.name, spent);
 
   if (envelope.status !== "success") {
     throw new Error(`${agent.name} reported status='${envelope.status}': ${envelope.summary}`);
@@ -467,6 +473,8 @@ async function parseWithRetries<S extends EnvelopeSchema>(
   agentDirName: string,
   first: copilot.CopilotRunResult,
   send: (prompt: string) => Promise<copilot.CopilotRunResult>,
+  /** The caller's lane — a correction belongs to the phase that provoked it. */
+  lane: PhaseConsole,
 ): Promise<{ envelope: z.infer<S>; attempt: number }> {
   let result = first;
   for (let attempt = 1; attempt <= JSON_FIX_ATTEMPTS + 1; attempt += 1) {
@@ -497,7 +505,7 @@ async function parseWithRetries<S extends EnvelopeSchema>(
         `${phase.params.owner} never produced valid ${call.outputTypeName} JSON: ${detail}`,
       );
     }
-    run.console.retry(
+    lane.retry(
       phase.params.owner,
       attempt,
       JSON_FIX_ATTEMPTS,
