@@ -39,7 +39,7 @@ an agent.
 | 7 | Agent cwd = **repo root**; `subdir` is a soft scope | monorepos need cross-package reads |
 | 8 | **Neutral tool vocab + `tools_extra`** | keeps a roster entry readable by both adapters |
 | 9 | **Next.js visualizer on Node**, shipped last | matches oms stack (Next 16 / React 19) |
-| 10 | **Spine of 4 ADWs**, other 8 generated on demand | prove the engine before multiplying it |
+| 10 | **Spine of 4 ADWs** first, the rest once it held | prove the engine before multiplying it |
 
 ### Factory vs runtime — DO NOT COLLAPSE THESE
 
@@ -296,6 +296,30 @@ from the Vue original, plus target filter and badge. Port reference:
 Built against real P1–P4 runs in the db. No fixtures.
 
 **Order: P0 → P1 → P2 → P3 → P4 → P6 → P5.**
+
+### P7 · the rest of the ADW set — done
+
+The spine held, so the remaining six SSSF chains were ported: `adw_plan_build`,
+`adw_build_test`, `adw_build_review`, `adw_quality`, `adw_document`,
+`adw_plan_build_test_quality`. Pure sequencing — no module changed, and the
+port made three corrections rather than copying them across:
+
+- SSSF's `adw_quality` **raised inside the phase** on a red block, reporting a
+  runner that did its job as if it had crashed. Here the phase records what ran
+  and `finish()` decides the run (hard rule: a code phase's `done()` means the
+  runner ran).
+- SSSF's `adw_plan_build_test_quality` folded the suite into the quality block
+  and left a comment wishing it had not. Here `verify` and `test` are separate
+  phases, so the trace names which one broke and a lint failure does not pay for
+  a full test run first.
+- SSSF ran fixed block lists against placeholder commands. Here the blocks come
+  from `quality.configured(target, ...)`, so a target that declares only `lint`
+  and `test` runs exactly those — and one that declares none is an error, never
+  a green tick.
+
+`adw_document` and `adw_quality` set `requireCleanRepo: false`, the only two
+that do: quality spawns no agent to tell apart from the engineer, and
+documenting after a build means the build is usually still uncommitted.
 
 ---
 

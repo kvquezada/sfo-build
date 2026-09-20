@@ -38,8 +38,19 @@ before anything downstream believes it.
 | `scout` | read-only recon |
 | `plan` | a spec, then stop |
 | `build` | build → test → commit |
+| `bt` | build → test ⟲ fix → commit |
+| `br` | build → review ⟲ revise → commit |
+| `pb` | plan → build → commit (no suite — deliberate) |
 | `pbt` | plan → build → test ⟲ fix → commit |
+| `pbtq` | plan → build → verify → test ⟲ fix → commit |
+| `quality` | lint / typecheck / build / test. No agents |
+| `document` | diff → write-up |
 | `sdlc` | plan → build → test ⟲ fix → review ⟲ revise → commit ×3 → document |
+
+They compose rather than nest: each row commits on its OWN acceptance criterion
+and nothing else's. `pbt` gates on the suite, `br` on the reviewer, `pbtq` on
+every block the target configures, `pb` on neither — for a spike whose diff
+belongs on record even though the tests would answer a question nobody asked.
 
 `sdlc` produces three commits from three authors — the spec, the code and the
 write-up each in their own commit, each message written by the agent that
