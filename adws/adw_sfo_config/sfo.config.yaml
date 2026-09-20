@@ -1,0 +1,104 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  sfo-build — one roster, one prompt set, many targets.
+#
+#  `tools:` is CAPABILITY. `writes:` is BOUNDARY. (Hard rule 9.)
+#  They are not the same statement and neither implies the other: `shell` runs
+#  anything and `write` reaches any path, so a capability list is a statement of
+#  intent that nothing checks. `writes:` is what permissions.ts enforces.
+#
+#  Tool names here are the NEUTRAL vocabulary (see adw_modules/tool_map.ts):
+#  read write edit search glob shell fetch subagent skill sql
+#  An unmapped name is a hard failure at validate time, never a silent drop.
+# ─────────────────────────────────────────────────────────────────────────────
+
+defaults:
+  coding_agent: copilot
+  model: gemini-3.6-flash
+  thinking: medium
+  data_dir: ~/.sfo-build
+  # Empty on purpose. The factory now lives OUTSIDE every target repo, so there
+  # is no in-repo path to protect; permissions.ts watches the factory tree as a
+  # tripwire instead, where ANY change is a breach.
+  protected_files: []
+
+observability:
+  db: ~/.sfo-build/sfo.db
+  poll_ms: 500
+
+agents:
+  - name: planner
+    model: claude-sonnet-5
+    thinking: high
+    color: "#a78bfa"
+    purpose: Turn a request into a plan the builder can implement without asking questions.
+    tools: [read, search, glob, shell, write, subagent]
+
+  - name: builder
+    model: gpt-5.6-terra
+    thinking: medium
+    color: "#22d3ee"
+    purpose: Implement the plan exactly and report every file changed.
+    tools: [read, search, glob, shell, write, edit]
+
+  - name: scout
+    model: gemini-3.6-flash
+    thinking: low
+    color: "#fbbf24"
+    purpose: Find and report where things live. Changes nothing.
+    tools: [read, search, glob, write]
+    # Read-only with respect to the REPO. Scout still writes its findings into
+    # the session handoff directory, which is outside every repo and therefore
+    # outside this boundary entirely.
+    writes: []
+
+  - name: reviewer
+    # A DIFFERENT VENDOR from the builder, on purpose. A reviewer that shares
+    # the builder's failure modes approves the builder's mistakes.
+    model: claude-sonnet-5
+    thinking: high
+    color: "#fb7185"
+    purpose: Confirm the build is what was asked for. Judges; never fixes.
+    tools: [read, search, glob, shell, write]
+    writes: []
+
+  - name: documenter
+    model: claude-haiku-4.5
+    thinking: medium
+    color: "#e879f9"
+    purpose: Write up a completed change from its diff.
+    tools: [read, search, glob, write, edit]
+    writes: ["app_docs/", "docs/", "**/*.md", "*.md"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Targets — a FLAT registry. `--target NAME` picks a row.
+#
+#  Two rows may share a `path`; `api` and `front` are both the oms checkout.
+#  That is why the concurrency lock is keyed on the resolved PATH and not on the
+#  target name, and why `api` and `front` are two runs, never one (known
+#  impossibility 7).
+#
+#  `test` stays REPO-WIDE even on a scoped target: "green" has to mean the same
+#  thing everywhere, and a change inside apps/api can break libs/shared's
+#  consumers. `subdir` constrains what the builder may WRITE, not what must pass.
+#
+#  Every command below is REAL and was run by hand. Never a placeholder that
+#  exits 0 — that is SSSF's number one shipped failure mode.
+# ─────────────────────────────────────────────────────────────────────────────
+
+targets:
+  - name: oms
+    path: ~/Workspace/personal/oms
+    test: [npx, nx, run-many, -t, test]
+    lint: [npx, nx, run-many, -t, lint]
+
+  - name: api
+    path: ~/Workspace/personal/oms
+    subdir: apps/api
+    test: [npx, nx, run-many, -t, test]
+    lint: [npx, nx, lint, api]
+
+  - name: front
+    path: ~/Workspace/personal/oms
+    subdir: apps/front
+    test: [npx, nx, run-many, -t, test]
+    lint: [npx, nx, lint, front]
