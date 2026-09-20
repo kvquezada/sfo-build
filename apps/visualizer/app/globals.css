@@ -1,0 +1,201 @@
+/* One dark theme. The trace is read in a terminal-adjacent context and the
+   colours match the console reporter's: agent=magenta, code=yellow,
+   engineer=cyan, so a phase looks the same in both places. */
+
+:root {
+  --bg: #0b0d12;
+  --bg-raised: #12151d;
+  --bg-hover: #171b26;
+  --border: #232937;
+  --border-bright: #313a4d;
+  --text: #e6e9f0;
+  --text-dim: #8b94a8;
+  --text-faint: #5b6478;
+
+  --success: #34d399;
+  --fail: #fb7185;
+  --running: #fbbf24;
+  --queued: #5b6478;
+
+  --engineer: #22d3ee;
+  --agent: #c084fc;
+  --code: #fbbf24;
+
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; text-decoration: none; }
+
+.mono { font-family: var(--mono); }
+
+.shell { max-width: 1180px; margin: 0 auto; padding: 0 20px 80px; }
+
+/* ── header ───────────────────────────────────────────────────────────────── */
+.masthead {
+  position: sticky; top: 0; z-index: 10;
+  background: rgba(11, 13, 18, 0.88);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+}
+.masthead-inner {
+  max-width: 1180px; margin: 0 auto; padding: 14px 20px;
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+}
+.brand { font-weight: 650; letter-spacing: -0.01em; font-size: 15px; }
+.brand span { color: var(--text-faint); font-weight: 400; }
+.masthead .spacer { flex: 1; }
+
+.dbline { font-family: var(--mono); font-size: 11px; color: var(--text-faint); }
+
+/* ── target filter ────────────────────────────────────────────────────────── */
+.filters { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.chip {
+  font: 500 12px/1 var(--mono);
+  padding: 6px 10px; border-radius: 999px; cursor: pointer;
+  background: var(--bg-raised); color: var(--text-dim);
+  border: 1px solid var(--border);
+  transition: background .12s, color .12s, border-color .12s;
+}
+.chip:hover { background: var(--bg-hover); color: var(--text); }
+.chip[data-on="true"] {
+  background: #1e2a44; color: #bfdbfe; border-color: #2f4468;
+}
+.chip .count { color: var(--text-faint); margin-left: 6px; }
+
+/* ── session list ─────────────────────────────────────────────────────────── */
+.cards { display: flex; flex-direction: column; gap: 10px; }
+
+.card {
+  display: block;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  transition: border-color .12s, background .12s;
+}
+.card:hover { border-color: var(--border-bright); background: var(--bg-hover); }
+
+.card-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.adwid { font: 600 13px/1 var(--mono); }
+.request { color: var(--text-dim); margin: 6px 0 10px; font-size: 13px; }
+.card-foot {
+  display: flex; gap: 14px; align-items: center; flex-wrap: wrap;
+  font: 400 11px/1 var(--mono); color: var(--text-faint);
+}
+
+/* ── chips ────────────────────────────────────────────────────────────────── */
+.status {
+  font: 600 10px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase;
+  padding: 4px 8px; border-radius: 5px; border: 1px solid transparent;
+}
+.status[data-s="success"] { color: var(--success); background: #34d3991a; border-color: #34d39933; }
+.status[data-s="fail"]    { color: var(--fail);    background: #fb71851a; border-color: #fb718533; }
+.status[data-s="running"] { color: var(--running); background: #fbbf241a; border-color: #fbbf2433; }
+.status[data-s="queued"]  { color: var(--queued);  background: #5b647822; }
+
+.badge {
+  font: 600 10px/1 var(--mono); letter-spacing: .04em;
+  padding: 4px 8px; border-radius: 5px;
+  background: #1e2a44; color: #bfdbfe; border: 1px solid #2f4468;
+}
+
+/* ── phase dots ───────────────────────────────────────────────────────────── */
+.dots { display: flex; gap: 3px; align-items: center; }
+.dot { width: 7px; height: 7px; border-radius: 2px; background: var(--queued); }
+.dot[data-s="success"] { background: var(--success); }
+.dot[data-s="fail"]    { background: var(--fail); }
+.dot[data-s="running"] { background: var(--running); animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
+
+/* ── detail ───────────────────────────────────────────────────────────────── */
+.crumb { font: 400 12px/1 var(--mono); color: var(--text-faint); margin-bottom: 14px; }
+.crumb a:hover { color: var(--text); }
+
+.panel {
+  background: var(--bg-raised); border: 1px solid var(--border);
+  border-radius: 10px; padding: 16px; margin-bottom: 14px;
+}
+.panel h2 {
+  font: 600 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase;
+  color: var(--text-faint); margin: 0 0 12px;
+}
+
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; font-size: 13px; }
+.kv dt { color: var(--text-faint); font: 400 12px/1.5 var(--mono); }
+.kv dd { margin: 0; font-family: var(--mono); font-size: 12px; word-break: break-all; }
+
+/* ── phase rows ───────────────────────────────────────────────────────────── */
+.phase {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 11px 12px; border-radius: 8px;
+  border-left: 3px solid var(--border);
+}
+.phase + .phase { margin-top: 4px; }
+.phase:hover { background: var(--bg-hover); }
+.phase[data-kind="engineer"] { border-left-color: var(--engineer); }
+.phase[data-kind="agent"]    { border-left-color: var(--agent); }
+.phase[data-kind="code"]     { border-left-color: var(--code); }
+
+.phase-seq { font: 600 12px/1.5 var(--mono); color: var(--text-faint); min-width: 20px; }
+.phase-body { flex: 1; min-width: 0; }
+.phase-name { font: 600 13px/1.4 var(--mono); }
+.phase-desc { color: var(--text-dim); font-size: 12.5px; margin-top: 2px; }
+.phase-meta { font: 400 11px/1 var(--mono); color: var(--text-faint); margin-top: 6px;
+              display: flex; gap: 12px; flex-wrap: wrap; }
+.phase-error {
+  margin-top: 8px; padding: 8px 10px; border-radius: 6px;
+  background: #fb71851a; border: 1px solid #fb718533;
+  color: #fecdd3; font: 400 11.5px/1.5 var(--mono); white-space: pre-wrap;
+}
+
+/* ── gates ────────────────────────────────────────────────────────────────── */
+.gate { padding: 8px 0; border-top: 1px solid var(--border); }
+.gate:first-of-type { border-top: 0; }
+.gate-head { display: flex; gap: 8px; align-items: center; font: 600 12px/1 var(--mono); }
+.check { display: flex; gap: 8px; padding: 3px 0 3px 22px; font: 400 11.5px/1.5 var(--mono);
+         color: var(--text-dim); }
+.check[data-ok="false"] { color: #fda4af; }
+.check .item { color: var(--text); flex-shrink: 0; }
+
+/* ── events ───────────────────────────────────────────────────────────────── */
+.events { font: 400 11.5px/1.7 var(--mono); }
+.ev { display: flex; gap: 10px; padding: 1px 0; }
+.ev-time { color: var(--text-faint); flex-shrink: 0; }
+.ev-type { flex-shrink: 0; width: 96px; color: var(--text-faint); }
+.ev[data-t="error"] .ev-type, .ev[data-t="gate_fail"] .ev-type { color: var(--fail); }
+.ev[data-t="gate_pass"] .ev-type { color: var(--success); }
+.ev[data-t="tool_call"] .ev-type { color: #7dd3fc; }
+.ev[data-t="agent_start"] .ev-type, .ev[data-t="agent_end"] .ev-type { color: var(--agent); }
+.ev-body { color: var(--text-dim); word-break: break-word; }
+
+/* ── agents ───────────────────────────────────────────────────────────────── */
+.agents { display: flex; flex-direction: column; gap: 8px; }
+.agent-row { display: flex; align-items: center; gap: 10px; font: 400 12px/1 var(--mono); }
+.swatch { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.agent-name { font-weight: 600; min-width: 92px; }
+.agent-model { color: var(--text-dim); min-width: 150px; }
+.agent-ctx { color: var(--text-faint); }
+
+.empty { color: var(--text-faint); font-size: 13px; padding: 40px 0; text-align: center; }
+.err {
+  background: #fb71851a; border: 1px solid #fb718533; color: #fecdd3;
+  border-radius: 10px; padding: 16px; font: 400 13px/1.6 var(--mono); white-space: pre-wrap;
+}
+.live { display: inline-flex; align-items: center; gap: 6px; color: var(--running); font-size: 11px;
+        font-family: var(--mono); }
+.live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--running);
+                animation: pulse 1.4s ease-in-out infinite; }

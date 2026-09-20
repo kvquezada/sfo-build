@@ -96,6 +96,45 @@ export function factoryRoot(): string {
   return path.resolve(path.dirname(new URL(import.meta.url).pathname), "..", "..");
 }
 
+/**
+ * Paths inside the factory that the tripwire ignores.
+ *
+ * The tripwire answers "did the factory tree change during this agent call",
+ * which only equals "the agent wrote to the factory" when nobody ELSE is
+ * writing — and the factory is exactly where its operator does their work.
+ * A real run was failed by this: `npm install` in apps/visualizer, running in
+ * another shell, created a lockfile mid-call and a perfectly well-behaved
+ * scout was accused of breaching the sandbox.
+ *
+ * These are paths that package managers and build tools write constantly and
+ * that no agent could plausibly target (it has no grant that reaches them).
+ * Ignoring them keeps the canary alive for changes that would actually mean
+ * something, instead of training its reader to disregard it.
+ */
+const TRIPWIRE_IGNORED = [
+  "node_modules/",
+  ".next/",
+  "dist/",
+  "build/",
+  ".turbo/",
+  "package-lock.json",
+  "bun.lock",
+  "bun.lockb",
+  "yarn.lock",
+  "pnpm-lock.yaml",
+  ".DS_Store",
+];
+
+function tripwireRelevant(p: string): boolean {
+  if (p === "#HEAD") return false;
+  const base = p.split("/").pop() ?? p;
+  return !TRIPWIRE_IGNORED.some(
+    (ignored) =>
+      (ignored.endsWith("/") && (p.startsWith(ignored) || p.includes(`/${ignored}`))) ||
+      base === ignored,
+  );
+}
+
 export function snapshot(repoRoot: string): TwoTreeSnapshot {
   return { repo: snapshotTree(repoRoot), factory: snapshotTree(factoryRoot()) };
 }
@@ -233,17 +272,24 @@ export function enforce(params: EnforceParams): string[] {
   // rolled back automatically — the engine's own source is not something this
   // process should be rewriting while it runs.
   const factoryTouched = changedPaths(params.before.factory, after.factory).filter(
-    (p) => p !== "#HEAD",
+    tripwireRelevant,
   );
   if (factoryTouched.length) {
     throw new PermissionBreach(
-      `TRIPWIRE: ${params.agent.name} changed ${factoryTouched.length} path(s) inside the ` +
-        `factory tree at ${factoryRoot()}:\n` +
+      `TRIPWIRE: the factory tree at ${factoryRoot()} changed during ` +
+        `${params.agent.name}'s phase — ${factoryTouched.length} path(s):\n` +
         factoryTouched.map((p) => `  - ${p}`).join("\n") +
-        `\n\nNo agent is ever granted this tree, so the harness sandbox should have ` +
-        `refused the write outright. Treat this as a sandbox failure: check that no ` +
-        `--allow-all-paths / --allow-all / --yolo flag reached the CLI, and inspect ` +
-        `these paths by hand before running anything else.`,
+        `\n\nTwo things can cause this, and they are not equally likely.\n\n` +
+        `1. YOU edited the factory while the run was in flight. This tree is where\n` +
+        `   its operator works, and the check cannot tell your writes from an\n` +
+        `   agent's — it only sees that the tree moved. If the paths above are\n` +
+        `   yours, this is a false alarm; re-run when you are not mid-edit.\n\n` +
+        `2. The harness sandbox failed. No agent is ever granted this tree, so an\n` +
+        `   agent write here should have been refused outright. If the paths are\n` +
+        `   NOT yours, treat it as serious: check that no --allow-all-paths /\n` +
+        `   --allow-all / --yolo flag reached the CLI, and inspect them by hand\n` +
+        `   before running anything else.\n\n` +
+        `Either way the phase is failed rather than guessed at.`,
     );
   }
 

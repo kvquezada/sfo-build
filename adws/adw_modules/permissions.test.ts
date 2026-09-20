@@ -176,6 +176,22 @@ describe("enforce against a real repo", () => {
     ).toThrow(/read-only/);
   });
 
+  test("the tripwire ignores paths that tooling writes and agents cannot reach", () => {
+    // A real run died on this: `npm install` in another shell created
+    // apps/visualizer/package-lock.json mid-call, and a well-behaved scout was
+    // accused of breaching the sandbox. A canary that cries wolf gets ignored.
+    const before = permissions.snapshot(repo);
+    before.factory = {
+      ...before.factory,
+      "apps/visualizer/package-lock.json": "untracked",
+      "apps/visualizer/node_modules/x/index.js": "untracked",
+      "apps/visualizer/.next/build.json": "untracked",
+    };
+    expect(() =>
+      permissions.enforce({ repoRoot: repo, subdir: "", agent: UNRESTRICTED, cfg, before }),
+    ).not.toThrow();
+  });
+
   test("the factory tripwire fires before any repo check, and never rolls back", () => {
     // Simulated by doctoring the BEFORE snapshot rather than writing into the
     // real factory: the assertion is that a difference in that tree aborts the

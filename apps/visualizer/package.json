@@ -1,0 +1,22 @@
+{
+  "name": "sfo-visualizer",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "NODE_OPTIONS=--no-warnings next dev -p 4317",
+    "build": "NODE_OPTIONS=--no-warnings next build",
+    "start": "NODE_OPTIONS=--no-warnings next start -p 4317",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "16.1.6",
+    "react": "19.2.0",
+    "react-dom": "19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.7.2"
+  }
+}

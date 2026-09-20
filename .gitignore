@@ -2,3 +2,5 @@ node_modules/
 .DS_Store
 *.log
 .next/
+apps/visualizer/.next/
+apps/visualizer/next-env.d.ts
