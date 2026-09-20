@@ -1,0 +1,118 @@
+# sfo-build
+
+A multi-repo AI software factory. Deterministic TypeScript owns sequencing,
+retries and acceptance; GitHub Copilot agents work inside bounded phases; typed
+Zod envelopes carry context across seams; every event streams to SQLite as it
+happens.
+
+**Agent proposes, code disposes.**
+
+```bash
+npm install
+npm run doctor                                          # validate the roster, live
+
+npm run scout -- --target api  "where is order-stage enforced"
+npm run sdlc  -- --target api  "add pagination to GET /customers"
+
+npm run sessions ; npm run phases -- <id> ; npm run tail -- <id>
+```
+
+## What it is
+
+Three phase kinds, one primitive:
+
+- **engineer** — a human decision, logged.
+- **agent** — prompt in, typed envelope out, gates verified, writes bounded.
+- **code** — a known command. A test runner is a command, not a judgement call.
+
+A phase is born `fail`; only `ph.done()` earns success, so any throw or early
+return leaves it failed. Every claim an agent makes — the files it wrote, the
+artifacts it produced, the paths it touched — is checked against the filesystem
+before anything downstream believes it.
+
+## Workflows
+
+| Command | Chain |
+|---|---|
+| `prompt` | one agent, one prompt |
+| `scout` | read-only recon |
+| `plan` | a spec, then stop |
+| `build` | build → test → commit |
+| `pbt` | plan → build → test ⟲ fix → commit |
+| `sdlc` | plan → build → test ⟲ fix → review ⟲ revise → commit ×3 → document |
+
+`sdlc` produces three commits from three authors — the spec, the code and the
+write-up each in their own commit, each message written by the agent that
+produced that work.
+
+## Targets
+
+One install drives many repos. A target is a row in a flat registry:
+
+```yaml
+targets:
+  - name: api
+    path: ~/Workspace/personal/oms
+    subdir: apps/api                      # bounds WRITES, never reads
+    test: [npx, nx, run-many, -t, test]   # real argv, verified before recording
+    lint: [npx, nx, lint, api]
+```
+
+```bash
+npm run install-target -- --path ~/Workspace/personal/oms --name api --subdir apps/api
+```
+
+The registrar runs the commands before it will record them. A test command that
+has not been seen exit 0 is a placeholder, and a placeholder that exits 0 is
+believed by every phase downstream.
+
+## Layout
+
+The factory and its runtime are **separate trees**, and that is load-bearing:
+
+```
+~/Workspace/sfo-build/     FACTORY — granted to no agent, ever
+  adws/adw_modules/          the engine
+  adws/adw_*.ts              the chains
+  adws/adw_sfo_config/       roster + target registry
+  adws/adw_data/prompt_engineering/
+  apps/visualizer/
+  .claude/skills/sfo-build/
+
+~/.sfo-build/              RUNTIME — outside git, granted narrowly
+  id/<agent>/                --add-dir (that agent only)
+  sessions/<adw_id>/         --add-dir (that run only)
+  sfo.db · locks/
+```
+
+Agents must be able to write handoff artifacts, so the session directory has to
+be `--add-dir`'d — and `--add-dir` grants a whole tree. If the runtime sat under
+the factory, every agent would have write access to the engine and to the
+prompts that grade it.
+
+## Permissions
+
+Prevent **and** detect.
+
+*Prevent* is the Copilot path sandbox, and it is the strong half: an attempt to
+write outside the working directory is refused by the harness, including through
+`bash`. It holds only while nothing passes `--allow-all-paths`, `--allow-all` or
+`--yolo`, which this codebase never constructs.
+
+*Detect* is the backstop. Both the target repo and the factory tree are
+fingerprinted before each agent call and compared afterwards. Anything an agent
+introduced outside its `writes:` allowlist is rolled back and the phase dies;
+any change at all inside the factory tree is a tripwire, because no agent is
+ever granted it.
+
+## Development
+
+```bash
+npm test          # bun test
+npm run typecheck
+```
+
+Measured harness behaviour — model availability, tool dialects, reasoning-effort
+support, the event stream, what the sandbox actually refuses — is written down in
+[`.claude/skills/sfo-build/references/copilot.md`](.claude/skills/sfo-build/references/copilot.md).
+Read it before assuming anything about the CLI.

@@ -18,7 +18,8 @@
     "procs": "bun adws/adw_observe.ts procs",
     "typecheck": "tsc --noEmit",
     "obs": "npm --prefix apps/visualizer run dev",
-    "test": "bun test adws/adw_modules"
+    "test": "bun test adws/adw_modules",
+    "install-target": "bun adws/adw_install.ts"
   },
   "dependencies": {
     "yaml": "^2.6.1",
