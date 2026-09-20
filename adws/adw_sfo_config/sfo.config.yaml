@@ -99,6 +99,17 @@ agents:
     tools: [read, search, glob, write]
     writes: []
 
+  - name: cartographer
+    # The correlator's sibling. Same inputs, same read-only boundary, opposite
+    # question: the correlator must name a seam, this one describes the path
+    # and is allowed to conclude that the two sides agree.
+    model: claude-sonnet-5
+    thinking: high
+    color: "#38bdf8"
+    purpose: Describe how a request flows across the repos and what the sides agree on. Describes; never judges.
+    tools: [read, search, glob, write]
+    writes: []
+
   - name: advisor
     model: claude-sonnet-5
     thinking: high

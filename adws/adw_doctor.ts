@@ -96,7 +96,7 @@ async function main(): Promise<number> {
           ? "read-only"
           : `${agent.writes.length} path rule(s)`;
     process.stdout.write(
-      `${havePrompts ? OK : BAD} ${agent.name.padEnd(11)} ${agent.model.padEnd(18)} ` +
+      `${havePrompts ? OK : BAD} ${agent.name.padEnd(13)} ${agent.model.padEnd(18)} ` +
         `${agent.thinking.padEnd(7)} ${toolText.padEnd(12)} ${writes}\n`,
     );
     if (!havePrompts) {
@@ -146,13 +146,13 @@ async function main(): Promise<number> {
     // always present in a real call, so it is not a real gap.
     const gaps = missingFromOffer(requested, offered).filter((t) => !t.includes("bash"));
     if (!gaps.length) {
-      process.stdout.write(`${OK} ${agent.name.padEnd(11)} gets everything it asks for\n`);
+      process.stdout.write(`${OK} ${agent.name.padEnd(13)} gets everything it asks for\n`);
       continue;
     }
     const writesFiles = agent.writes === null || (agent.writes?.length ?? 0) > 0;
     const hasShell = (agent.tools ?? []).includes("shell");
     process.stdout.write(
-      `${WARN} ${agent.name.padEnd(11)} ${agent.model} does not offer: ${gaps.join(", ")}\n`,
+      `${WARN} ${agent.name.padEnd(13)} ${agent.model} does not offer: ${gaps.join(", ")}\n`,
     );
     if (writesFiles && !hasShell && gaps.some((g) => g === "create" || g === "edit")) {
       fail(
