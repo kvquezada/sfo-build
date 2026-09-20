@@ -27,6 +27,37 @@ function resolveArtifact(run: RunLike, artifact: string): string {
   return path.isAbsolute(artifact) ? artifact : path.join(run.repoRoot, artifact);
 }
 
+function within(child: string, parent: string): boolean {
+  const rel = path.relative(parent, child);
+  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+}
+
+/**
+ * An artifact has to be somewhere the artifact is FOR.
+ *
+ * Existence alone is not enough, and this is not hypothetical: a documenter
+ * whose writes into the repo and the session directory both failed fell back
+ * to writing its report inside its own COPILOT_HOME, declared that path, and
+ * passed both artifacts_exist and files_non_empty. The file was real, non-empty
+ * and completely useless — nobody would ever read it, and the commit phase
+ * afterwards had nothing to commit.
+ *
+ * Two roots are legitimate: the target repo (a work product that ships) and
+ * this run's session directory (a handoff between agents). Anywhere else means
+ * the agent did not do what it claimed, however well-formed the claim looks.
+ */
+function artifactLocation(run: RunLike, artifact: string): { ok: boolean; note: string } {
+  const full = resolveArtifact(run, artifact);
+  if (within(full, run.repoRoot)) return { ok: true, note: "" };
+  if (within(full, run.sessionDir)) return { ok: true, note: "" };
+  return {
+    ok: false,
+    note:
+      `declared artifact is outside both the repo (${run.repoRoot}) and this ` +
+      `run's session directory (${run.sessionDir}) — nothing reads that path`,
+  };
+}
+
 function named<T extends EnvelopeBase>(name: string, gate: Gate<T>): Gate<T> {
   gate.gateName = name;
   return gate;
@@ -35,7 +66,16 @@ function named<T extends EnvelopeBase>(name: string, gate: Gate<T>): Gate<T> {
 /** Every path the agent declared as an artifact must exist. */
 export const artifacts_exist: Gate = named("artifacts_exist", (envelope, run) => {
   const report = new GateReport();
+  if (!envelope.artifacts.length) {
+    report.check("artifacts", false, "no artifacts declared — this phase is required to produce one");
+    return report;
+  }
   for (const artifact of envelope.artifacts) {
+    const where = artifactLocation(run, artifact);
+    if (!where.ok) {
+      report.check(artifact, false, where.note);
+      continue;
+    }
     const full = resolveArtifact(run, artifact);
     const exists = existsSync(full);
     report.check(
@@ -46,6 +86,39 @@ export const artifacts_exist: Gate = named("artifacts_exist", (envelope, run) =>
   }
   return report;
 });
+
+/**
+ * A named field must point at a file that exists IN THE REPO.
+ *
+ * `artifacts` may legitimately live in the session directory; a work product
+ * that is supposed to ship — the documenter's write-up — may not. This is the
+ * gate that would have caught the COPILOT_HOME fallback at the phase that
+ * produced it rather than at the commit two phases later.
+ */
+export function file_in_repo(field: string): Gate {
+  const gate: Gate = (envelope, run) => {
+    const report = new GateReport();
+    const claimed = String((envelope as Record<string, unknown>)[field] ?? "");
+    if (!claimed) {
+      report.check(field, false, `${field} is empty — name the file you wrote, relative to the repo root`);
+      return report;
+    }
+    if (path.isAbsolute(claimed) && !within(claimed, run.repoRoot)) {
+      report.check(claimed, false, `${field} must be inside the repo at ${run.repoRoot}`);
+      return report;
+    }
+    const full = path.isAbsolute(claimed) ? claimed : path.join(run.repoRoot, claimed);
+    const exists = existsSync(full) && statSync(full).isFile();
+    report.check(
+      claimed,
+      exists,
+      exists ? `exists in the repo, ${humanSize(statSync(full).size)}` : `${field} does not exist at ${full}`,
+    );
+    return report;
+  };
+  gate.gateName = `file_in_repo(${field})`;
+  return gate;
+}
 
 /** A declared artifact that is an empty file is not an artifact. */
 export const files_non_empty: Gate = named("files_non_empty", (envelope, run) => {
@@ -98,7 +171,7 @@ export const diff_matches_claims: Gate = named("diff_matches_claims", (envelope,
     report.check(
       "changed_files",
       false,
-      "the builder reported no changed files — a build phase that changed nothing has not built anything",
+      "the builder claims it changed nothing — a build phase that changed nothing has not built anything",
     );
   }
   return report;

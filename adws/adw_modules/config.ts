@@ -76,8 +76,9 @@ interface ProbeCache {
   probed: Record<string, { available: boolean; at: string; detail: string; tools?: string[] }>;
 }
 
-// Bumped when the probe started capturing each model's tool dialect.
-const PROBE_VERSION = 2;
+// v2 captured each model's tool dialect; v3 keys on (model, thinking) because
+// reasoning-effort support is per-model too — see probeModel.
+const PROBE_VERSION = 3;
 const PROBE_TTL_MS = 14 * 24 * 60 * 60 * 1000; // a fortnight — the roster is stable
 
 function probePath(cfg: SfoConfig): string {
@@ -104,6 +105,7 @@ function writeProbeCache(cfg: SfoConfig, cache: ProbeCache): void {
 
 export interface ModelVerdict {
   model: string;
+  thinking: string;
   available: boolean;
   detail: string;
   cached: boolean;
@@ -120,6 +122,7 @@ export interface ModelVerdict {
  */
 function probeCopilotModel(
   model: string,
+  thinking: string,
   cwd: string,
 ): { available: boolean; detail: string; tools: string[] } {
   const result = spawnSync(
@@ -135,7 +138,7 @@ function probeCopilotModel(
       "json",
       "--allow-all-tools",
       "--reasoning-effort",
-      "none",
+      thinking,
       // bash excluded so a probe can never RUN anything; every other tool is
       // left listed, because the point is to read this model's dialect out of
       // session.usage_checkpoint. The prompt itself calls nothing.
@@ -180,26 +183,49 @@ function offeredTools(stdout: string, model: string): string[] {
   return [];
 }
 
+/**
+ * Probe a (model, thinking) PAIR, not a model.
+ *
+ * Reasoning-effort support is per-model and there is no catalog to read it
+ * from either. Measured: `claude-haiku-4.5` accepts `none` and rejects every
+ * other level with `does not support reasoning effort configuration`, while
+ * `claude-sonnet-5` takes the full range. Probing only the model — which this
+ * did at first, always with `none` — passes every roster and then fails at the
+ * documenter's phase, eight phases into a run that has already committed twice.
+ */
 export function probeModel(
   cfg: SfoConfig,
   model: string,
+  thinking: string,
   opts: { refresh?: boolean; cwd?: string } = {},
 ): ModelVerdict {
   const cache = readProbeCache(cfg);
-  const hit = cache.probed[model];
+  const key = `${model}::${thinking}`;
+  const hit = cache.probed[key];
   const fresh = hit && Date.now() - Date.parse(hit.at) < PROBE_TTL_MS;
   if (hit && fresh && !opts.refresh) {
-    return { model, available: hit.available, detail: hit.detail, tools: hit.tools ?? [], cached: true };
+    return {
+      model,
+      thinking,
+      available: hit.available,
+      detail: hit.detail,
+      tools: hit.tools ?? [],
+      cached: true,
+    };
   }
-  const verdict = probeCopilotModel(model, opts.cwd ?? process.cwd());
-  cache.probed[model] = { ...verdict, at: new Date().toISOString() };
+  const verdict = probeCopilotModel(model, thinking, opts.cwd ?? process.cwd());
+  cache.probed[key] = { ...verdict, at: new Date().toISOString() };
   writeProbeCache(cfg, cache);
-  return { model, ...verdict, cached: false };
+  return { model, thinking, ...verdict, cached: false };
 }
 
-/** Every distinct model the roster names — what `doctor` walks. */
-export function rosterModels(cfg: SfoConfig): string[] {
-  return [...new Set(cfg.agents.map((a) => a.model))].sort();
+/** Every distinct (model, thinking) pair the roster names — what `doctor` walks. */
+export function rosterModels(cfg: SfoConfig): { model: string; thinking: string }[] {
+  const seen = new Map<string, { model: string; thinking: string }>();
+  for (const agent of cfg.agents) {
+    seen.set(`${agent.model}::${agent.thinking}`, { model: agent.model, thinking: agent.thinking });
+  }
+  return [...seen.values()].sort((a, b) => a.model.localeCompare(b.model));
 }
 
 // ── validation ───────────────────────────────────────────────────────────────
@@ -276,20 +302,22 @@ export function validate(
   }
 
   if (opts.checkModels !== false) {
-    const models = [
-      ...new Set(
-        required
-          .map((n) => cfg.agents.find((a) => a.name === n)?.model)
-          .filter((m): m is string => Boolean(m)),
-      ),
-    ];
-    for (const model of models) {
-      const verdict = probeModel(cfg, model, { cwd: opts.cwd });
+    const pairs = new Map<string, { model: string; thinking: string; who: string[] }>();
+    for (const name of required) {
+      const agent = cfg.agents.find((a) => a.name === name);
+      if (!agent) continue;
+      const key = `${agent.model}::${agent.thinking}`;
+      const entry = pairs.get(key) ?? { model: agent.model, thinking: agent.thinking, who: [] };
+      entry.who.push(name);
+      pairs.set(key, entry);
+    }
+    for (const { model, thinking, who } of pairs.values()) {
+      const verdict = probeModel(cfg, model, thinking, { cwd: opts.cwd });
       if (!verdict.available) {
-        const who = required.filter((n) => cfg.agents.find((a) => a.name === n)?.model === model);
         problems.push(
-          `model '${model}' (used by ${who.join(", ")}) is not available: ${verdict.detail}` +
-            (verdict.cached ? " [cached — run `npm run doctor` to re-probe]" : ""),
+          `model '${model}' at thinking '${thinking}' (used by ${who.join(", ")}) ` +
+            `is not usable: ${verdict.detail}` +
+            (verdict.cached ? " [cached — run `npm run doctor --refresh` to re-probe]" : ""),
         );
       }
     }

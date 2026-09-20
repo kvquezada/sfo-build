@@ -106,17 +106,25 @@ async function main(): Promise<number> {
     }
   }
 
-  heading("models  (no catalog exists — this is a live probe, cached 14d)");
+  // Probed as (model, thinking) PAIRS. Reasoning-effort support is per-model
+  // with no catalog to read it from: claude-haiku-4.5 accepts only `none` and
+  // rejects every other level outright, so probing the model alone would pass
+  // a roster that dies mid-run.
+  heading("models  (no catalog exists — this is a live probe of model × thinking, cached 14d)");
   const dialects = new Map<string, string[]>();
-  for (const model of rosterModels(cfg)) {
-    const verdict = probeModel(cfg, model, { refresh, cwd: factoryRoot() });
-    dialects.set(model, verdict.tools);
-    const who = cfg.agents.filter((a) => a.model === model).map((a) => a.name).join(", ");
+  for (const { model, thinking } of rosterModels(cfg)) {
+    const verdict = probeModel(cfg, model, thinking, { refresh, cwd: factoryRoot() });
+    if (verdict.tools.length) dialects.set(model, verdict.tools);
+    const who = cfg.agents
+      .filter((a) => a.model === model && a.thinking === thinking)
+      .map((a) => a.name)
+      .join(", ");
     const tag = verdict.cached ? "cached" : "probed";
+    const label = `${model} @ ${thinking}`;
     if (verdict.available) {
-      process.stdout.write(`${OK} ${model.padEnd(20)} ${tag.padEnd(7)} ${who}\n`);
+      process.stdout.write(`${OK} ${label.padEnd(28)} ${tag.padEnd(7)} ${who}\n`);
     } else {
-      fail(`${model.padEnd(20)} ${tag.padEnd(7)} ${who} — ${verdict.detail}`);
+      fail(`${label.padEnd(28)} ${tag.padEnd(7)} ${who} — ${verdict.detail}`);
     }
   }
 

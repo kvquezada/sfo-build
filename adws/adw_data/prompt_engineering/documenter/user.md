@@ -28,8 +28,14 @@ Target `{{target}}` — repo root `{{repo_root}}`.
 diff of this run, measured against the commit the run started from.
 
 1. **Read `diff_path` in full.** It is the record of what shipped.
-2. Write the document to `app_docs/{{adw_id}}_<slug>.md`, where `<slug>` is two
-   to four kebab-case words naming the work. `mkdir -p app_docs` first.
+2. Write the document to `{{repo_root}}/app_docs/{{adw_id}}_<slug>.md`, where
+   `<slug>` is two to four kebab-case words naming the work.
+   **That directory already exists — the workflow created it for you.** Write
+   into it directly, and do not write your report anywhere else. A write-up
+   that lands outside the repository is not a work product: nothing reads it,
+   and the commit that follows this phase will have nothing to commit.
+   If a write fails, say so in `summary` and report `status: "fail"` rather
+   than writing the document somewhere that happens to succeed.
 3. Emit your Report JSON.
 
 ### Shape

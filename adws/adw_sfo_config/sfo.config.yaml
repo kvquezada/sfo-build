@@ -67,10 +67,17 @@ agents:
 
   - name: documenter
     model: claude-haiku-4.5
-    thinking: medium
+    # `none` is not a preference — claude-haiku-4.5 rejects every other level
+    # with "does not support reasoning effort configuration". Measured, not
+    # assumed; `npm run doctor` probes this pair and will say so if it changes.
+    thinking: none
     color: "#e879f9"
     purpose: Write up a completed change from its diff.
-    tools: [read, search, glob, write, edit]
+    # `shell` is not decoration: without it the documenter cannot mkdir the
+    # directory its own task tells it to write into, and `create` does not make
+    # parent directories. It failed a real run that way, then quietly wrote its
+    # report into COPILOT_HOME instead. `writes:` still bounds it to markdown.
+    tools: [read, search, glob, write, edit, shell]
     writes: ["app_docs/", "docs/", "**/*.md", "*.md"]
 
 # ─────────────────────────────────────────────────────────────────────────────
