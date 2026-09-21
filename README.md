@@ -125,6 +125,32 @@ that commits over an unresolved objection says so on the console. Like
 `--ship`, the flag goes LAST: the parser takes the next non-`--` token as a
 flag's value, so `--adversary "add pagination"` eats your prompt.
 
+## Roster
+
+Nine agents, one roster, every target — there is no per-repo variant, so a model
+or prompt improvement lands everywhere at once.
+
+| | |
+|---|---|
+| **planner** claude-sonnet-5 | plans; never implements. Writes `specs/` |
+| **builder** gpt-5.6-terra | implements the plan. The only one that writes source |
+| **scout** gemini-3.6-flash | finds where things live. Changes nothing |
+| **reviewer** claude-sonnet-5 | was each requirement met? Gates the commit |
+| **adversary** grok-4.6 | what does this do that nobody asked for? Advisory |
+| **correlator** claude-sonnet-5 | names the seam between two repos' scout reports |
+| **cartographer** claude-sonnet-5 | describes the flow instead of hunting a fault |
+| **advisor** claude-sonnet-5 | at most three ranked fixes, with costs |
+| **documenter** claude-haiku-4.5 | writes up a change from its diff |
+
+The vendor splits are load-bearing: a reviewer sharing the builder's failure
+modes approves the builder's mistakes, and the adversary is a third vendor again
+because it is there to catch what the *reviewer* waves through. `tools:` is
+capability, `writes:` is boundary, and neither implies the other.
+
+[`ROSTER.md`](ROSTER.md) has the whole thing — what each agent is for, what the
+three `writes:` states mean, and which settings were measured rather than
+chosen.
+
 ## Targets
 
 One install drives many repos. A target is a row in a flat registry:
