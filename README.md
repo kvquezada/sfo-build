@@ -18,6 +18,9 @@ npm run trace -- --target front --target api  "why does the stage badge go stale
 npm run sessions ; npm run phases -- <id> ; npm run tail -- <id>
 ```
 
+Setting up from scratch, or pointing this at another repo?
+[`INSTRUCTIONS.md`](INSTRUCTIONS.md).
+
 ## What it is
 
 Three phase kinds, one primitive:
@@ -142,6 +145,12 @@ npm run install-target -- --path ~/Workspace/personal/oms --name api --subdir ap
 The registrar runs the commands before it will record them. A test command that
 has not been seen exit 0 is a placeholder, and a placeholder that exits 0 is
 believed by every phase downstream.
+
+Registering is the only install there is — nothing is copied into the target
+repo, and per-repo factory variants are a known impossibility rather than an
+oversight. [`INSTRUCTIONS.md`](INSTRUCTIONS.md) walks a full example: several
+repos registered at once, what the registrar refuses, and what each agent call
+actually looks like when it reaches Copilot.
 
 ## Layout
 
