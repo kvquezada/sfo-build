@@ -153,9 +153,8 @@ npm run sdlc -- --target api "add pagination" --ship
 ```
 
 Pick a chain by what has to be true before the code lands, not by how many
-phases it has. See [the workflow table](README.md#workflows), or
-[`cookbooks/run_adw.md`](.claude/skills/sfo-build/cookbooks/run_adw.md) for the
-same table annotated with "use when".
+phases it has. [`WORKFLOWS.md`](WORKFLOWS.md) covers every chain in full; the
+roster behind them is [`ROSTER.md`](ROSTER.md).
 
 ## What "running in Copilot" means at the seam
 

@@ -125,6 +125,10 @@ that commits over an unresolved objection says so on the console. Like
 `--ship`, the flag goes LAST: the parser takes the next non-`--` token as a
 flag's value, so `--adversary "add pagination"` eats your prompt.
 
+[`WORKFLOWS.md`](WORKFLOWS.md) has every chain in full — its phases, which
+agents it needs, how many commits it makes, what its loop bounds are, and the
+exact condition each one calls success.
+
 ## Roster
 
 Nine agents, one roster, every target — there is no per-repo variant, so a model
