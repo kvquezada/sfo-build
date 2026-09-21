@@ -54,6 +54,7 @@ export function resolveTarget(cfg: SfoConfig, name: string): ResolvedTarget {
     build: row.build,
     base_branch: row.base_branch,
     remote: row.remote,
+    brief: row.brief || row.name,
   };
 }
 

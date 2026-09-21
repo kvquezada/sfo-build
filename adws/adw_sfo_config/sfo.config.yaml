@@ -179,6 +179,7 @@ targets:
     path: ~/Workspace/personal/oms
     subdir: apps/api
     base_branch: main
+    brief: oms
     test: [npx, nx, run-many, -t, test]
     lint: [npx, nx, lint, api]
 
@@ -186,5 +187,6 @@ targets:
     path: ~/Workspace/personal/oms
     subdir: apps/front
     base_branch: main
+    brief: oms
     test: [npx, nx, run-many, -t, test]
     lint: [npx, nx, lint, front]

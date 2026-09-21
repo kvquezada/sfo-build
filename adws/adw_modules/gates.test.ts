@@ -35,7 +35,7 @@ let run: RunLike;
 const target = (name: string, repoPath: string) => ({
   name, path: repoPath, scope: repoPath, subdir: "",
   test: [], lint: [], typecheck: [], build: [],
-  base_branch: "master", remote: "origin",
+  base_branch: "master", remote: "origin", brief: name,
 });
 
 beforeEach(() => {

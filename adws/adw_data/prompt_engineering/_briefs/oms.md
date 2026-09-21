@@ -1,4 +1,4 @@
-<!-- Shared context, inlined into every agent's system.md. Edit here, not there. -->
+<!-- The oms brief: inlined into the system prompt of every agent working on a target whose brief is `oms`. Edit here, not there. -->
 
 ## The codebase
 

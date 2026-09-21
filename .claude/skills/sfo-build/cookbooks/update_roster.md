@@ -53,9 +53,12 @@ message. Both support `{{prompt}}`, `{{previous_envelope}}`,
 `{{context_handoff_dir}}`, `{{adw_id}}`, `{{target}}`, `{{repo_root}}`,
 `{{subdir}}`, `{{scope_dir}}`, `{{agent_name}}`, `{{repo_brief}}`.
 
-`{{repo_brief}}` is `prompt_engineering/_repo_brief.md`, inlined into every
-system prompt. Domain vocabulary and conventions go **there**, once — five
-copies drift within a week.
+`{{repo_brief}}` is `prompt_engineering/_briefs/<brief>.md`, inlined into every
+system prompt for that target. `<brief>` is the target's `brief:` in the
+registry, defaulting to its `name`, so scopes of one repo share a file
+(`api` and `front` both say `brief: oms`). Domain vocabulary and conventions go
+**there**, once — five copies drift within a week. A target with no brief file
+gets no brief, never another repo's.
 
 > **Over-specify.** Copilot has no `--system-prompt` and never will. Your file
 > arrives as `selected_agent_instructions` *alongside* Copilot's own `identity`

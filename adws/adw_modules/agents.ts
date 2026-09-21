@@ -8,7 +8,7 @@
  * restart of the whole context window.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { z } from "zod";
 
@@ -166,13 +166,10 @@ export async function execute<S extends EnvelopeSchema>(
   const agentDir = path.join(run.sessionDir, key);
   mkdirSync(agentDir, { recursive: true });
 
-  // The repo brief is one file, inlined into every system prompt. Five copies
+  // One brief per TARGET, shared by every agent that works on it. Five copies
   // of the same domain description would drift within a week.
-  const briefPath = path.join(run.promptRoot, "_repo_brief.md");
-  const repoBrief = existsSync(briefPath) ? readFileSync(briefPath, "utf8").trim() : "";
-
   const variables: Record<string, string> = {
-    repo_brief: repoBrief,
+    repo_brief: prompts.brief(run.promptRoot, target),
     prompt: call.prompt,
     previous_envelope: call.previous ? JSON.stringify(call.previous, null, 2) : "(none)",
     context_handoff_dir: run.handoffFor(target),

@@ -520,6 +520,18 @@ export const TargetConfig = z.object({
    */
   base_branch: z.string().default("master"),
   remote: z.string().default("origin"),
+  /**
+   * Which `prompt_engineering/_briefs/<brief>.md` is inlined as `{{repo_brief}}`.
+   *
+   * Defaults to the target's own name, so `api` and `front` — two scopes of
+   * one repo — name `oms` rather than carrying copies that drift. A target
+   * with no brief file gets NO brief, never another repo's: a Swift scout told
+   * it is standing in a NestJS monorepo spends its turns looking for one.
+   */
+  brief: z
+    .string()
+    .regex(/^[\w.-]*$/, "brief is a file name under _briefs/, not a path")
+    .default(""),
 });
 export type TargetConfig = z.infer<typeof TargetConfig>;
 
@@ -709,4 +721,6 @@ export interface ResolvedTarget {
   /** The trunk a ship run branches from and targets. */
   base_branch: string;
   remote: string;
+  /** The `_briefs/` file name, already defaulted to `name`. */
+  brief: string;
 }

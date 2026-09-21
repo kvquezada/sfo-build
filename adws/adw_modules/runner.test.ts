@@ -25,7 +25,7 @@ let run: Run;
 const target = (name: string, repoPath: string): ResolvedTarget => ({
   name, path: repoPath, scope: repoPath, subdir: "",
   test: [], lint: [], typecheck: [], build: [],
-  base_branch: "main", remote: "origin",
+  base_branch: "main", remote: "origin", brief: name,
 });
 
 let mobile: ResolvedTarget;
