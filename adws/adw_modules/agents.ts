@@ -169,7 +169,7 @@ export async function execute<S extends EnvelopeSchema>(
   // One brief per TARGET, shared by every agent that works on it. Five copies
   // of the same domain description would drift within a week.
   const variables: Record<string, string> = {
-    repo_brief: prompts.brief(run.promptRoot, target),
+    repo_brief: prompts.brief(prompts.briefRoots(run.promptRoot, run.cfg.defaults.data_dir), target),
     test_command: prompts.testCommand(target),
     prompt: call.prompt,
     previous_envelope: call.previous ? JSON.stringify(call.previous, null, 2) : "(none)",

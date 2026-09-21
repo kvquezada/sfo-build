@@ -521,7 +521,8 @@ export const TargetConfig = z.object({
   base_branch: z.string().default("master"),
   remote: z.string().default("origin"),
   /**
-   * Which `prompt_engineering/_briefs/<brief>.md` is inlined as `{{repo_brief}}`.
+   * Which brief is inlined as `{{repo_brief}}`: `<data_dir>/briefs/<brief>.md`,
+   * else `prompt_engineering/_briefs/<brief>.md` (see prompts.brief).
    *
    * Defaults to the target's own name, so `api` and `front` — two scopes of
    * one repo — name `oms` rather than carrying copies that drift. A target

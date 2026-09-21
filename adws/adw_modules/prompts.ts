@@ -3,19 +3,40 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-import { shellJoin } from "./utils.ts";
+import { expandHome, shellJoin } from "./utils.ts";
+
+/** Where each brief layer lives. `personal` is outside every repo. */
+export interface BriefRoots {
+  /** `<data_dir>/briefs` — this machine's, never committed. */
+  personal: string;
+  /** `prompt_engineering/_briefs` — the team's, changed through review. */
+  team: string;
+}
+
+export function briefRoots(promptRoot: string, dataDir: string): BriefRoots {
+  return {
+    personal: path.join(expandHome(dataDir), "briefs"),
+    team: path.join(promptRoot, "_briefs"),
+  };
+}
 
 /**
  * The brief for ONE target, or "" when it has none.
  *
  * Chosen per target rather than per run: on a cross-repo trace each phase
  * stands in a different checkout, and each gets its own repo's description.
- * A missing file is not an error and falls back to nothing — an empty brief
- * costs the agent a little orientation, a wrong one costs it the run.
+ *
+ * Personal wins over team, whole-file: a private repo or an experiment needs no
+ * PR, and a brief spliced from two layers is one nobody wrote. A missing file
+ * is not an error and falls back to nothing — an empty brief costs the agent a
+ * little orientation, a wrong one costs it the run.
  */
-export function brief(promptRoot: string, target: { brief: string }): string {
-  const file = path.join(promptRoot, "_briefs", `${target.brief}.md`);
-  return existsSync(file) ? readFileSync(file, "utf8").trim() : "";
+export function brief(roots: BriefRoots, target: { brief: string }): string {
+  for (const root of [roots.personal, roots.team]) {
+    const file = path.join(root, `${target.brief}.md`);
+    if (existsSync(file)) return readFileSync(file, "utf8").trim();
+  }
+  return "";
 }
 
 /**

@@ -3,28 +3,41 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { brief, testCommand } from "./prompts.ts";
+import { brief, briefRoots, testCommand, type BriefRoots } from "./prompts.ts";
 import { TargetConfig } from "./types.ts";
 
 let root: string;
+let roots: BriefRoots;
 
 beforeEach(() => {
   root = mkdtempSync(path.join(tmpdir(), "sfo-prompts-"));
-  mkdirSync(path.join(root, "_briefs"));
-  writeFileSync(path.join(root, "_briefs", "oms.md"), "\nAn Nx monorepo.\n\n");
+  roots = briefRoots(path.join(root, "prompt_engineering"), path.join(root, "data"));
+  mkdirSync(roots.team, { recursive: true });
+  mkdirSync(roots.personal, { recursive: true });
+  writeFileSync(path.join(roots.team, "api.md"), "\nThe team's API brief.\n\n");
 });
 
 afterEach(() => rmSync(root, { recursive: true, force: true }));
 
 describe("brief", () => {
-  test("inlines the target's own brief, trimmed", () => {
-    expect(brief(root, { brief: "oms" })).toBe("An Nx monorepo.");
+  test("inlines the team brief, trimmed", () => {
+    expect(brief(roots, { brief: "api" })).toBe("The team's API brief.");
+  });
+
+  test("a personal brief wins over the team's, whole-file", () => {
+    writeFileSync(path.join(roots.personal, "api.md"), "My API brief.");
+    expect(brief(roots, { brief: "api" })).toBe("My API brief.");
+  });
+
+  test("a personal brief needs no team one", () => {
+    writeFileSync(path.join(roots.personal, "oms.md"), "My side project.");
+    expect(brief(roots, { brief: "oms" })).toBe("My side project.");
   });
 
   test("a target with no brief file gets none — never another repo's", () => {
     // The old single _repo_brief.md told every target it was the OMS monorepo.
-    writeFileSync(path.join(root, "_repo_brief.md"), "An Nx monorepo.");
-    expect(brief(root, { brief: "ios" })).toBe("");
+    writeFileSync(path.join(root, "prompt_engineering", "_repo_brief.md"), "An Nx monorepo.");
+    expect(brief(roots, { brief: "ios" })).toBe("");
   });
 });
 

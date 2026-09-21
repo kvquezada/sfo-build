@@ -84,7 +84,7 @@ targets:
 | `test` `lint` `typecheck` `build` | `[]` | real argv, never a placeholder |
 | `base_branch` | `master` | the trunk `npm run ship` branches from and targets |
 | `remote` | `origin` | the remote it pushes to |
-| `brief` | the target's `name` | which `_briefs/<brief>.md` is inlined as `{{repo_brief}}`; no file means no brief |
+| `brief` | the target's `name` | which brief is inlined as `{{repo_brief}}`: `~/.sfo-build/briefs/<brief>.md`, else `_briefs/<brief>.md`; neither means none |
 
 `base_branch` is only read by the ship chain. The default is a guess and a wrong
 one is loud rather than silent: the fetch fails on a branch the remote does not
