@@ -1,6 +1,6 @@
 ---
 name: sfo-build
-description: Multi-repo AI software factory — operate repeatable agents+code workflows (ADWs) against any registered repo. Use when the user says /sfo-build install, wants to run/create/update an ADW, register a target repo, manage the agent roster in sfo.config.yaml, or observe running agent workflows. Keywords - sfo, sfo-build, software factory, ADW, AI developer workflow, agent pipeline, register target, copilot workflow.
+description: Multi-repo AI software factory — operate repeatable agents+code workflows (ADWs) against any registered repo. Use when the user says /sfo-build install, wants to run/create/update an ADW, set up a new machine, register a target repo, write a repo brief, manage the agent roster in sfo.config.yaml, or observe running agent workflows. Keywords - sfo, sfo-build, software factory, ADW, AI developer workflow, agent pipeline, register target, copilot workflow.
 argument-hint: "[install | run adw | create adw | add target | update config | observe]"
 ---
 
@@ -19,7 +19,9 @@ Three steps. Then stop.
 1. Read [cookbooks/overview.md](cookbooks/overview.md) — the system map.
 2. `ls adws/adw_*.ts` and read each file's `Phases:` docstring line.
 3. Print the ADWs and the registered targets as two short tables, then
-   **wait for the engineer's request.**
+   **wait for the engineer's request.** Targets are this machine's, in
+   `~/.sfo-build/targets.yaml`; no file means none yet — say so and point at
+   `/sfo-build install`.
 
 ```
 | ADW | Chain | Use when |
@@ -62,7 +64,7 @@ You run the system, observe it, and help the engineer interact with it.
 
 | Request | Cookbook |
 |---|---|
-| `/sfo-build install`, register a repo as a target | [cookbooks/install.md](cookbooks/install.md) |
+| `/sfo-build install`, set up this machine, register a repo, write a brief | [cookbooks/install.md](cookbooks/install.md) |
 | run / monitor an ADW | [cookbooks/prompting.md](cookbooks/prompting.md) **first**, then [cookbooks/run_adw.md](cookbooks/run_adw.md) |
 | turn a request into an ADW prompt | [cookbooks/prompting.md](cookbooks/prompting.md) |
 | create a new ADW / workflow | [cookbooks/create_adw.md](cookbooks/create_adw.md) |
