@@ -109,7 +109,7 @@ a push is outward-facing in a way a local commit is not, and it uses your own
 each requirement was met; the adversary asks what the change does that nobody
 asked for — silent behaviour changes, a requirement met technically and not
 practically, the unhandled path. It runs on a third vendor
-(`gemini-3.6-flash`, against the builder's `gpt-5.6-terra` and the reviewer's
+(`grok-4.6`, against the builder's `gpt-5.6-terra` and the reviewer's
 `claude-sonnet-5`) and it runs **alongside** the reviewer, not after it: both
 are given `--add-dir` onto the session directory, so a second judge that went
 second would find the first one's `review.md` and anchor on it.

@@ -16,7 +16,7 @@ serves every target (decision 9), so a change here lands everywhere.
 **`model`** — there is no catalog and no `--list-models`. A bad id fails at run
 time, so `doctor` probes it live and caches the verdict for 14 days.
 Known available on this account: `gpt-5.6-luna`, `gpt-5.6-terra`,
-`claude-sonnet-5`, `claude-haiku-4.5`, `gemini-3.6-flash`.
+`claude-sonnet-5`, `claude-haiku-4.5`, `gemini-3.6-flash`, `grok-4.6`.
 
 **`thinking`** — `none | minimal | low | medium | high | xhigh | max`, **but
 support is per-model**. `claude-haiku-4.5` accepts only `none` and rejects every
@@ -72,7 +72,7 @@ builder's mistakes. If you change one, check you have not accidentally made them
 the same family.
 
 The optional `adversary` (`--adversary` on `br` and `sdlc`) is a third vendor
-again — `gemini-3.6-flash` — for the same reason one step further out: it is
+again — `grok-4.6` — for the same reason one step further out: it is
 there to catch what the *reviewer* waves through, so sharing the reviewer's
 family would cost most of what it is for. Three agents, three vendors, no shared
 blind spot. Changing any one of them is a decision about all three.

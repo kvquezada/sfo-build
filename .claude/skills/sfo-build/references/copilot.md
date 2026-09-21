@@ -59,9 +59,14 @@ exit 1, on stderr, in ~5s, **before any model call** — so probing costs time,
 not a premium request. That is what `doctor` does, cached 14 days.
 
 Available on this account (measured): `gpt-5.6-luna`, `gpt-5.6-terra`,
-`claude-sonnet-5`, `claude-haiku-4.5`, `gemini-3.6-flash`.
+`claude-sonnet-5`, `claude-haiku-4.5`, `gemini-3.6-flash`, `grok-4.6`.
 Not available: `claude-opus-5`, `claude-sonnet-4.5`, `gemini-3-pro`, `o4-mini`,
-`gpt-5`.
+`gpt-5`, `grok-4`, `grok-4-6`, `grok-4.6-fast`.
+
+`grok-4.6` was probed 2026-09-21 on the same CLI build: accepted at
+`--reasoning-effort high`, 10 tools offered, and `doctor` reports the adversary
+gets every tool it asks for — so its dialect includes `create`, unlike
+`gpt-5.6-terra`. The rest of its dialect has not been read off a probe.
 
 ### Reasoning effort is per-model
 

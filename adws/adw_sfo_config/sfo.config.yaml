@@ -46,6 +46,7 @@ models:
   gpt-5.6-terra:     { context_window: 400000 }
   gpt-5.6-luna:      { context_window: 400000 }  # declared, not measured — same tier as terra
   gemini-3.6-flash:  { context_window: 1000000 }
+  grok-4.6:          { context_window: 328000 }   # declared by the operator, not probed
 
 agents:
   - name: planner
@@ -88,15 +89,14 @@ agents:
     writes: []
 
   - name: adversary
-    # The replacement shares the BUILDER's family, and that is the lesser evil.
-    # This agent's job is to catch what the REVIEWER waves through, so sharing
-    # the reviewer's model would collapse two independent judges into one
-    # opinion rendered twice — and they run concurrently precisely to be
-    # independent. Builder-family overlap costs less here because the question
-    # is about the diff on disk, not about re-deriving how it was written.
-    # claude-opus-5 would have kept both splits; it is not available on this
-    # account (doctor refuses it at validate time).
-    model: gpt-5.6-luna
+    # A THIRD vendor, and that is the whole point: the builder is OpenAI, the
+    # reviewer is Anthropic, and a judge sharing either one's failure modes is
+    # a second opinion in name only — they run concurrently precisely to be
+    # independent. This replaces gpt-5.6-luna, which shared the builder's
+    # family as the lesser evil back when nothing else was available.
+    # Probed on this account: `grok-4.6` is accepted and takes `high`.
+    # Spellings that are NOT available: grok-4, grok-4-6, grok-4.6-fast.
+    model: grok-4.6
     thinking: high
     color: "#f59e0b"
     purpose: Hunt for what the reviewer would wave through. Judges; never fixes.

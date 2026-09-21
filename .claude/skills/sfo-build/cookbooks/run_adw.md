@@ -111,7 +111,7 @@ npm run br -- --target api "add pagination" --adversary
 
 | | reviewer | adversary |
 |---|---|---|
-| model | `claude-sonnet-5` | `gemini-3.6-flash` |
+| model | `claude-sonnet-5` | `grok-4.6` |
 | question | is each requirement met? | what does this do that nobody asked for? |
 | writes | `review.md` | `adversary.md` |
 | verdict | **gates the commit** | advisory |
