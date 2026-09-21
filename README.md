@@ -33,6 +33,39 @@ override where it looks.
 Setting up from scratch, or pointing this at another repo?
 [`INSTRUCTIONS.md`](INSTRUCTIONS.md).
 
+## Team setup
+
+The repo is the part everyone shares; everything about *your* repos stays on
+your machine.
+
+| | where | shared |
+|---|---|---|
+| engine, chains, roster, prompts | this repo | yes — through PRs |
+| targets | `~/.sfo-build/targets.yaml` | no — paths are per machine |
+| personal briefs | `~/.sfo-build/briefs/<brief>.md` | no |
+| team briefs | `adws/adw_data/prompt_engineering/_briefs/<brief>.md` | yes — through a PR |
+
+A fresh clone has no targets and no briefs, and that is a working state.
+
+```bash
+gh repo clone kvquezada/sfo-build ~/Workspace/sfo-build
+cd ~/Workspace/sfo-build && npm install
+copilot --version        # logged in with your own account; usage bills to your plan
+npm run doctor           # probes every roster model against YOUR Copilot plan
+claude                   # then: /sfo-build install
+```
+
+`/sfo-build install` walks the rest: registering a repo (the registrar when it
+has a suite you'll build against, a hand-written row when it is read-only), and
+optionally a brief — written by you or drafted from a scout, confirmed by you
+before it is saved, personal or team. A brief reaches every agent on that repo
+and no gate checks it, so team briefs land through review;
+[`_briefs/README.md`](adws/adw_data/prompt_engineering/_briefs/README.md) has
+the rules.
+
+If `doctor` reports a roster model your plan doesn't include, raise it with the
+team rather than editing the roster in place — the roster is shared.
+
 ## What it is
 
 Three phase kinds, one primitive:
@@ -212,7 +245,8 @@ The factory and its runtime are **separate trees**, and that is load-bearing:
 ~/.sfo-build/              RUNTIME — outside git, granted narrowly
   id/<agent>/                --add-dir (that agent only)
   sessions/<adw_id>/         --add-dir (that run only)
-  targets.yaml                  this machine's target registry
+  targets.yaml               this machine's target registry
+  briefs/<brief>.md          personal briefs (win over the team's)
   sfo.db · locks/
 ```
 

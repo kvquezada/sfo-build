@@ -117,6 +117,7 @@ before assuming anything about the harness.
   id/<agent>/                   --add-dir (that agent only)
   sessions/<adw_id>/            --add-dir (that run only)
   targets.yaml                  this machine's target registry
+  briefs/<brief>.md             personal briefs (win over the team's)
   sfo.db · locks/
 ```
 
