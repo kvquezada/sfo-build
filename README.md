@@ -18,6 +18,18 @@ npm run trace -- --target front --target api  "why does the stage badge go stale
 npm run sessions ; npm run phases -- <id> ; npm run tail -- <id>
 ```
 
+The visualizer is its own Next.js app with its own dependencies — the root
+`npm install` does not cover it:
+
+```bash
+npm --prefix apps/visualizer install   # once
+npm run obs                            # http://localhost:4317
+```
+
+It needs Node ≥ 22.5 (`node:sqlite`) and reads `~/.sfo-build/sfo.db`, which
+exists only after the first run. `SFO_DB`, `SFO_SESSIONS` and `SFO_CONFIG`
+override where it looks.
+
 Setting up from scratch, or pointing this at another repo?
 [`INSTRUCTIONS.md`](INSTRUCTIONS.md).
 
