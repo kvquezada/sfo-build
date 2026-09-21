@@ -143,12 +143,12 @@ because it fails before any model call.
 
 ```yaml
 models:
-  claude-sonnet-5:   { context_window: 200000 }
+  claude-sonnet-5:   { context_window: 264000 }
   claude-opus-5:     { context_window: 200000 }
   claude-haiku-4.5:  { context_window: 200000 }
   gpt-5.6-terra:     { context_window: 400000 }
-  gpt-5.6-luna:      { context_window: 400000 }
-  gemini-3.6-flash:  { context_window: 1000000 }
+  gpt-5.6-luna:      { context_window: 328000 }
+  gemini-3.6-flash:  { context_window: 264000 }
   grok-4.6:          { context_window: 328000 }
 ```
 
