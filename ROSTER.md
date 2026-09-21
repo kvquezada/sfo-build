@@ -141,23 +141,18 @@ because it fails before any model call.
 
 ## Context ceilings
 
-```yaml
-models:
-  claude-sonnet-5:   { context_window: 264000 }
-  claude-opus-5:     { context_window: 200000 }
-  claude-haiku-4.5:  { context_window: 200000 }
-  gpt-5.6-terra:     { context_window: 400000 }
-  gpt-5.6-luna:      { context_window: 328000 }
-  gemini-3.6-flash:  { context_window: 264000 }
-  grok-4.6:          { context_window: 328000 }
-```
+The per-model windows live in the `models:` block of
+[`sfo.config.yaml`](adws/adw_sfo_config/sfo.config.yaml). The numbers are not
+repeated here on purpose: they are operator-tunable, they changed twice in this
+file's first day, and a copy of them in prose is a copy that goes quietly stale.
 
-These are **declared, not measured.** Copilot's `--context` is a tier, not a
-number, and no catalog exposes a window size, so `context_window` on every
-`agent_sessions` row is 0 and always will be. The trace UI draws its CONTEXT bar
-against the numbers above and says so in the tooltip. Verify them before
-trusting a percentage; a model with no row here shows its token count and no
-percentage, which is the honest default.
+What does not change is what they are: **declared, not measured.** Copilot's
+`--context` is a tier, not a number, and no catalog exposes a window size, so
+`context_window` on every `agent_sessions` row is 0 and always will be. The
+trace UI draws its CONTEXT bar against whatever that block says and admits as
+much in the tooltip. Verify a number before trusting a percentage drawn from
+it; a model with no row shows its token count and no percentage, which is the
+honest default.
 
 ## Checking the roster
 
