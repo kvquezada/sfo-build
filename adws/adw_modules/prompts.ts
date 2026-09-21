@@ -3,6 +3,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
+import { shellJoin } from "./utils.ts";
+
 /**
  * The brief for ONE target, or "" when it has none.
  *
@@ -14,6 +16,19 @@ import path from "node:path";
 export function brief(promptRoot: string, target: { brief: string }): string {
   const file = path.join(promptRoot, "_briefs", `${target.brief}.md`);
   return existsSync(file) ? readFileSync(file, "utf8").trim() : "";
+}
+
+/**
+ * The target's registered test argv, for a prompt to quote verbatim.
+ *
+ * Prompts are shared across every target, so none may name a runner. A target
+ * with no test command says so in a line an agent cannot mistake for one —
+ * a guessed `npm test` is the placeholder problem again, one layer up.
+ */
+export function testCommand(target: { test: string[] }): string {
+  return target.test.length
+    ? shellJoin(target.test)
+    : "# no test command is registered for this target: skip this step, and do not invent one";
 }
 
 export function render(templatePath: string, variables: Record<string, string>): string {

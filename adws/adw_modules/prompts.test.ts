@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { brief } from "./prompts.ts";
+import { brief, testCommand } from "./prompts.ts";
 import { TargetConfig } from "./types.ts";
 
 let root: string;
@@ -35,5 +35,19 @@ describe("TargetConfig.brief", () => {
 
   test("is a file name, not a path", () => {
     expect(() => TargetConfig.parse({ name: "ios", path: "~/x", brief: "../../secrets" })).toThrow();
+  });
+});
+
+describe("testCommand", () => {
+  test("quotes the target's own argv", () => {
+    expect(testCommand({ test: ["swift", "test", "--filter", "Checkout Tests"] })).toBe(
+      "swift test --filter 'Checkout Tests'",
+    );
+  });
+
+  test("a target with no test command gets a refusal, not a guess", () => {
+    const line = testCommand({ test: [] });
+    expect(line.startsWith("#")).toBe(true);
+    expect(line).toContain("do not invent one");
   });
 });

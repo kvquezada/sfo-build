@@ -51,7 +51,8 @@ package the work happened in.
 `system.md` becomes the agent's `--agent` identity file; `user.md` is the task
 message. Both support `{{prompt}}`, `{{previous_envelope}}`,
 `{{context_handoff_dir}}`, `{{adw_id}}`, `{{target}}`, `{{repo_root}}`,
-`{{subdir}}`, `{{scope_dir}}`, `{{agent_name}}`, `{{repo_brief}}`.
+`{{subdir}}`, `{{scope_dir}}`, `{{agent_name}}`, `{{repo_brief}}`,
+`{{test_command}}` (the target's registered test argv, never a hard-coded runner).
 
 `{{repo_brief}}` is `prompt_engineering/_briefs/<brief>.md`, inlined into every
 system prompt for that target. `<brief>` is the target's `brief:` in the

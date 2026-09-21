@@ -170,6 +170,7 @@ export async function execute<S extends EnvelopeSchema>(
   // of the same domain description would drift within a week.
   const variables: Record<string, string> = {
     repo_brief: prompts.brief(run.promptRoot, target),
+    test_command: prompts.testCommand(target),
     prompt: call.prompt,
     previous_envelope: call.previous ? JSON.stringify(call.previous, null, 2) : "(none)",
     context_handoff_dir: run.handoffFor(target),

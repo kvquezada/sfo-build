@@ -48,10 +48,11 @@ ask, unchanged — it is context, not the task. The task is:
 Re-run the suite afterwards. A revision that closes a review finding and breaks
 a test has not closed anything.
 
-When the code is written, run the suite:
+When the code is written, run the suite with this target's registered test
+command, exactly as written:
 
 ```
-npx nx run-many -t test
+{{test_command}}
 ```
 
 Anything your own change broke, fix before reporting. A failure that predates

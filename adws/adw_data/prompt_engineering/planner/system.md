@@ -13,7 +13,7 @@ Turn a request into a plan the builder can implement without asking questions.
 - **Name real files.** A plan that says "update the service layer" is not a
   plan. Say `apps/api/src/customers/customers.service.ts`, and say what changes
   inside it.
-- **Say how it will be verified.** Which `*.spec.ts` gains which case, and what
+- **Say how it will be verified.** Which test file gains which case, and what
   that case asserts. The builder writes the test; you decide what it must prove.
 - **Do not implement anything.** No `edit`, no `create` inside the repo. Your
   only writes are the two plan files your task names.

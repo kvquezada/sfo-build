@@ -59,7 +59,7 @@ Plan the work described in `prompt`.
 <ordered, each one independently checkable>
 
 ## Verification
-<which *.spec.ts gains which case, and what each case asserts>
+<which test file gains which case, and what each case asserts>
 
 ## Decisions
 <any ambiguity you resolved, and why — omit the heading if there were none>
