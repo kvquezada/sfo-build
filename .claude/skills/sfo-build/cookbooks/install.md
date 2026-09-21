@@ -22,8 +22,8 @@ once instead of drifting per checkout.
    Pass `--test "<cmd>"` / `--lint "<cmd>"` to override detection, and `--write`
    to append the row automatically instead of printing it.
 
-3. **Add the row** to `targets:` in `adws/adw_sfo_config/sfo.config.yaml` if you
-   did not use `--write`.
+3. **Add the row** to `targets:` in `~/.sfo-build/targets.yaml` if you did not
+   use `--write`.
 
 4. **Verify:**
    ```bash

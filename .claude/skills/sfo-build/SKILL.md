@@ -107,13 +107,14 @@ before assuming anything about the harness.
 ~/Workspace/sfo-build/        FACTORY — git repo, granted to NOBODY
   adws/adw_modules/*.ts         engine
   adws/adw_*.ts                 chains
-  adws/adw_sfo_config/          roster + target registry
+  adws/adw_sfo_config/          roster (targets are per machine)
   adws/adw_data/prompt_engineering/   the grading criteria
   apps/visualizer/
 
 ~/.sfo-build/                 RUNTIME — outside git, granted narrowly
   id/<agent>/                   --add-dir (that agent only)
   sessions/<adw_id>/            --add-dir (that run only)
+  targets.yaml                  this machine's target registry
   sfo.db · locks/
 ```
 

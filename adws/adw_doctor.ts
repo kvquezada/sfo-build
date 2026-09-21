@@ -13,7 +13,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 
-import { loadConfig, probeModel, promptPaths, rosterModels } from "./adw_modules/config.ts";
+import { loadConfig, probeModel, promptPaths, rosterModels, targetsPath } from "./adw_modules/config.ts";
 import * as permissions from "./adw_modules/permissions.ts";
 import { configPath, factoryRoot, parseArgs, promptRoot } from "./adw_modules/session.ts";
 import { resolveTarget } from "./adw_modules/targets.ts";
@@ -163,7 +163,12 @@ async function main(): Promise<number> {
     }
   }
 
-  heading("targets");
+  heading(`targets  (${targetsPath(cfg.defaults.data_dir)} — this machine only)`);
+  if (!cfg.targets.length) {
+    process.stdout.write(
+      `      none yet — npm run install-target -- --path <repo> --name <n> --write\n`,
+    );
+  }
   for (const row of cfg.targets) {
     try {
       const target = resolveTarget(cfg, row.name);
@@ -198,8 +203,11 @@ async function main(): Promise<number> {
 
   heading(problems ? `${problems} problem(s)` : "ready");
   if (!problems) {
+    const first = cfg.targets[0]?.name;
     process.stdout.write(
-      `  Try:  npm run prompt -- --target ${cfg.targets[0]?.name ?? "oms"} "summarize this repo in one line"\n`,
+      first
+        ? `  Try:  npm run prompt -- --target ${first} "summarize this repo in one line"\n`
+        : `  Next: register a repo — npm run install-target -- --path <repo> --name <n> --write\n`,
     );
   }
   return problems ? 1 : 0;

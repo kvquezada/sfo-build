@@ -21,10 +21,10 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-import { loadConfig } from "./adw_modules/config.ts";
+import { loadConfig, targetsPath } from "./adw_modules/config.ts";
 import { configPath, parseArgs } from "./adw_modules/session.ts";
 import { absolute, operatorEnv, shellJoin } from "./adw_modules/utils.ts";
 
@@ -174,6 +174,7 @@ async function main(): Promise<number> {
 
   const cfgPath = configPath(typeof args.config === "string" ? args.config : undefined);
   const cfg = loadConfig(cfgPath);
+  const targetsFile = targetsPath(cfg.defaults.data_dir);
   const existing = cfg.targets.find((t) => t.name === name);
   if (existing && flags["force"] !== true) {
     process.stdout.write(
@@ -249,12 +250,14 @@ async function main(): Promise<number> {
   }
 
   if (flags["write"] === true) {
-    const text = readFileSync(cfgPath, "utf8");
-    writeFileSync(cfgPath, `${text.replace(/\s*$/, "")}\n\n${row}`);
-    process.stdout.write(`\n${OK} appended to ${cfgPath}\n`);
+    // This machine's registry, never the shared config: see loadConfig.
+    const text = existsSync(targetsFile) ? readFileSync(targetsFile, "utf8") : "targets:\n";
+    mkdirSync(path.dirname(targetsFile), { recursive: true });
+    writeFileSync(targetsFile, `${text.replace(/\s*$/, "")}\n\n${row}`);
+    process.stdout.write(`\n${OK} appended to ${targetsFile}\n`);
   } else {
     process.stdout.write(
-      `\n\x1b[1madd this to the targets: list in\x1b[0m ${cfgPath}\n\n${row}\n` +
+      `\n\x1b[1madd this to the targets: list in\x1b[0m ${targetsFile}\n\n${row}\n` +
         `  (or re-run with --write to append it automatically)\n`,
     );
   }

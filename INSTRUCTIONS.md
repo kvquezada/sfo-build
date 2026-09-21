@@ -62,7 +62,9 @@ npm run install-target -- --path ~/Workspace/personal/handbook --name docs \
 | `--write` | append the row instead of printing it |
 
 Without `--write` the registrar prints the YAML row for you to paste into
-`adws/adw_sfo_config/sfo.config.yaml`.
+`~/.sfo-build/targets.yaml` (or `$SFO_TARGETS`). That file is this machine's
+alone: the shared `sfo.config.yaml` refuses a `targets:` key, so one person's
+registrations never land in anyone else's clone.
 
 Each invocation **runs** the detected test and lint commands before recording
 them. Expect it to take a while, and expect registration to fail if the suite is
@@ -75,6 +77,8 @@ The registrar also refuses a repo that is not a git repo, and a duplicate name
 unless `--force`.
 
 ## What you end up with
+
+In `~/.sfo-build/targets.yaml`:
 
 ```yaml
 targets:

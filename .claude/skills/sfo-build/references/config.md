@@ -1,8 +1,10 @@
 # Configuration reference
 
-`adws/adw_sfo_config/sfo.config.yaml`. One file: defaults, observability, the
-agent roster, the target registry. Parsed and validated by `config.ts` against
-the Zod schemas in `types.ts`.
+`adws/adw_sfo_config/sfo.config.yaml`: defaults, observability, the agent
+roster — everything the team shares. The target registry is NOT in it: that is
+`~/.sfo-build/targets.yaml` (`<data_dir>/targets.yaml`, or `$SFO_TARGETS`), one
+per machine. Both are parsed and validated by `config.ts` against the Zod
+schemas in `types.ts`; a `targets:` key in the shared file is refused.
 
 ## defaults
 
@@ -62,6 +64,9 @@ Prompts are found by convention at
 
 ## targets
 
+In `~/.sfo-build/targets.yaml`, not the shared config. A missing file is a
+fresh machine with no targets.
+
 ```yaml
 targets:
   - name: api
@@ -79,6 +84,7 @@ targets:
 | `test` `lint` `typecheck` `build` | `[]` | real argv, never a placeholder |
 | `base_branch` | `master` | the trunk `npm run ship` branches from and targets |
 | `remote` | `origin` | the remote it pushes to |
+| `brief` | the target's `name` | which `_briefs/<brief>.md` is inlined as `{{repo_brief}}`; no file means no brief |
 
 `base_branch` is only read by the ship chain. The default is a guess and a wrong
 one is loud rather than silent: the fetch fails on a branch the remote does not

@@ -1,7 +1,8 @@
 # Add or change a target
 
-`targets:` in `adws/adw_sfo_config/sfo.config.yaml`. A flat registry: one row,
-one `--target NAME`.
+`targets:` in `~/.sfo-build/targets.yaml` — this machine's registry, outside
+every repo. A flat registry: one row, one `--target NAME`. The shared
+`sfo.config.yaml` refuses a `targets:` key.
 
 Adding one is [install.md](install.md) — use the registrar, because it runs the
 commands before recording them.

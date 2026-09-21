@@ -11,7 +11,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { parse as parseYaml } from "yaml";
 
-import { SfoConfig, type AgentConfig, type CodingAgent } from "./types.ts";
+import { SfoConfig, TargetConfig, type AgentConfig, type CodingAgent } from "./types.ts";
 import { resolveTools, unsupported, UnknownToolError } from "./tool_map.ts";
 import { absolute, expandHome, formatZodError, operatorEnv } from "./utils.ts";
 
@@ -45,9 +45,39 @@ export function loadConfig(configPath: string = DEFAULT_CONFIG_PATH): SfoConfig 
     }
   }
 
+  // Targets are per machine. Refusing them here, rather than merging, is what
+  // stops a teammate's registration from landing in a shared commit.
+  const dataDir = typeof defaults["data_dir"] === "string" ? defaults["data_dir"] : "~/.sfo-build";
+  const targetsFile = targetsPath(dataDir);
+  if ("targets" in raw) {
+    throw new ConfigError(
+      `${file} has a targets: key, but targets are per machine. Move those rows ` +
+        `into ${targetsFile} (same shape: a top-level targets: list) and delete ` +
+        `them from the shared config.`,
+    );
+  }
+  raw["targets"] = readTargets(targetsFile);
+
   const parsed = SfoConfig.safeParse(raw);
   if (!parsed.success) {
     throw new ConfigError(`invalid config ${file}: ${formatZodError(parsed.error)}`);
+  }
+  return parsed.data;
+}
+
+/** This machine's target registry: `$SFO_TARGETS`, else `<data_dir>/targets.yaml`. */
+export function targetsPath(dataDir: string): string {
+  const override = process.env["SFO_TARGETS"];
+  return override ? absolute(override) : path.join(absolute(dataDir), "targets.yaml");
+}
+
+/** No file is a fresh machine, not an error: it has no targets yet. */
+function readTargets(file: string): unknown[] {
+  if (!existsSync(file)) return [];
+  const raw = (parseYaml(readFileSync(file, "utf8")) ?? {}) as Record<string, unknown>;
+  const parsed = TargetConfig.array().safeParse(raw["targets"] ?? []);
+  if (!parsed.success) {
+    throw new ConfigError(`invalid targets ${file}: ${formatZodError(parsed.error)}`);
   }
   return parsed.data;
 }

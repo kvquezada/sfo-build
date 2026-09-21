@@ -169,7 +169,9 @@ chosen.
 
 ## Targets
 
-One install drives many repos. A target is a row in a flat registry:
+One install drives many repos. A target is a row in a flat registry that lives
+**on your machine**, at `~/.sfo-build/targets.yaml` — never in this repo, so a
+teammate's paths never reach yours:
 
 ```yaml
 targets:
@@ -202,7 +204,7 @@ The factory and its runtime are **separate trees**, and that is load-bearing:
 ~/Workspace/sfo-build/     FACTORY — granted to no agent, ever
   adws/adw_modules/          the engine
   adws/adw_*.ts              the chains
-  adws/adw_sfo_config/       roster + target registry
+  adws/adw_sfo_config/       roster (targets are per machine)
   adws/adw_data/prompt_engineering/
   apps/visualizer/
   .claude/skills/sfo-build/
@@ -210,6 +212,7 @@ The factory and its runtime are **separate trees**, and that is load-bearing:
 ~/.sfo-build/              RUNTIME — outside git, granted narrowly
   id/<agent>/                --add-dir (that agent only)
   sessions/<adw_id>/         --add-dir (that run only)
+  targets.yaml                  this machine's target registry
   sfo.db · locks/
 ```
 
